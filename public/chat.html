@@ -289,7 +289,17 @@
 
     <script>
         let ws;
-        let currentUser = null;
+        let currentUser = {
+            id: 'default',
+            username: 'TestUser',
+            avatar: 'images/avatars/default-avatar.png'
+        };
+
+        // Update current user info in header
+        document.getElementById('current-user-info').innerHTML = `
+            <img src="${currentUser.avatar}" alt="Your Avatar" class="message-avatar" style="width: 24px; height: 24px;">
+            <span>${currentUser.username}</span>
+        `;
 
         // Connect to WebSocket server
         function connectWebSocket() {
@@ -297,6 +307,7 @@
 
             ws.onopen = () => {
                 console.log('Connected to chat server');
+                document.querySelector('.system-message').textContent = 'Connected to chat server';
             };
 
             ws.onmessage = (event) => {
@@ -306,7 +317,7 @@
 
             ws.onclose = () => {
                 console.log('Disconnected from chat server');
-                // Attempt to reconnect after 5 seconds
+                document.querySelector('.system-message').textContent = 'Disconnected from chat server. Reconnecting...';
                 setTimeout(connectWebSocket, 5000);
             };
         }
@@ -315,6 +326,7 @@
         function handleMessage(data) {
             switch (data.type) {
                 case 'history':
+                    document.getElementById('chat-messages').innerHTML = '';
                     data.messages.forEach(message => displayMessage(message));
                     break;
                 case 'message':
@@ -332,7 +344,7 @@
         // Display a message in the chat
         function displayMessage(message) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = 'message';
+            messageDiv.className = `message ${message.userId === currentUser.id ? 'sent' : 'received'}`;
             
             const avatar = document.createElement('img');
             avatar.className = 'message-avatar';
