@@ -1,0 +1,7 @@
+version: 2
+authtoken: 2uZFxYX3VU3dBAwt7EYpcbbaNcG_3KSHmUXc55UCHfckRaqdN
+tunnels:
+  wheeliq:
+    proto: http
+    addr: 8080
+    inspect: true 

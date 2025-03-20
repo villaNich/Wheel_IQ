@@ -3,41 +3,266 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome to Wheel IQ</title>
+    <title>Wheel IQ - Formula One Analytics</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --f1-red: #e10600;
+            --f1-dark: #15151e;
+            --f1-gray: #38383f;
+            --f1-light: #ffffff;
+        }
+
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: 'Roboto', sans-serif;
             margin: 0;
             padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            background-color: var(--f1-dark);
+            color: var(--f1-light);
             min-height: 100vh;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
         }
-        .welcome-container {
+
+        .navbar {
+            background-color: var(--f1-red);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--f1-light);
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-links a {
+            color: var(--f1-light);
+            text-decoration: none;
+            font-weight: 500;
+            transition: opacity 0.3s;
+        }
+
+        .nav-links a:hover {
+            opacity: 0.8;
+        }
+
+        .hero {
+            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)),
+                        url('https://images.unsplash.com/photo-1617814076367-b759c7d7e738?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80');
+            background-size: cover;
+            background-position: center;
+            height: 60vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             text-align: center;
-            padding: 2rem;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            padding: 0 2rem;
         }
-        h1 {
-            font-size: 3rem;
+
+        .hero-content {
+            max-width: 800px;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            color: var(--f1-red);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .features {
+            padding: 4rem 2rem;
+            background-color: var(--f1-gray);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .feature-card {
+            background-color: var(--f1-dark);
+            padding: 2rem;
+            border-radius: 8px;
+            text-align: center;
+            transition: transform 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-card h3 {
+            color: var(--f1-red);
             margin-bottom: 1rem;
         }
-        p {
+
+        .cta-button {
+            background-color: var(--f1-red);
+            color: var(--f1-light);
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .cta-button:hover {
+            background-color: #b30500;
+        }
+
+        .footer {
+            background-color: var(--f1-dark);
+            padding: 2rem;
+            text-align: center;
+            color: var(--f1-light);
+        }
+
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+        }
+
+        .race-data-section {
+            padding: 4rem 2rem;
+            background-color: var(--f1-dark);
+        }
+
+        .race-data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .race-card, .standing-card, .result-card {
+            background-color: var(--f1-gray);
+            padding: 1.5rem;
+            border-radius: 8px;
+            transition: transform 0.3s;
+        }
+
+        .race-card:hover, .standing-card:hover, .result-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .race-card h3, .standing-card h3, .result-card h3 {
+            color: var(--f1-red);
+            margin-bottom: 1rem;
             font-size: 1.2rem;
-            opacity: 0.9;
+        }
+
+        .race-card p, .standing-card p, .result-card p {
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+
+        .section-title {
+            text-align: center;
+            color: var(--f1-red);
+            margin-bottom: 2rem;
+            font-size: 2rem;
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--f1-light);
+            padding: 2rem;
         }
     </style>
 </head>
 <body>
-    <div class="welcome-container">
-        <h1>Welcome to Wheel IQ</h1>
-        <p>Your intelligent wheel management solution</p>
-    </div>
+    <nav class="navbar">
+        <a href="/" class="logo">Wheel IQ</a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#analytics">Analytics</a>
+            <a href="#predictions">Predictions</a>
+            <a href="#login">Login</a>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Welcome to Wheel IQ</h1>
+            <p>Your ultimate Formula One analytics platform. Get real-time insights, race predictions, and comprehensive statistics for every Grand Prix.</p>
+            <a href="/chat.html" class="cta-button">Get Started</a>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="features-grid">
+            <div class="feature-card">
+                <h3>Real-Time Analytics</h3>
+                <p>Track live race data, lap times, and team strategies as they happen.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Race Predictions</h3>
+                <p>AI-powered predictions for race outcomes based on historical data and current conditions.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Driver Statistics</h3>
+                <p>Comprehensive driver performance metrics and career statistics.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Team Analysis</h3>
+                <p>Deep insights into team strategies, car performance, and pit stop optimization.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="race-data-section" id="analytics">
+        <h2 class="section-title">Current Season Data</h2>
+        <div class="race-data-grid">
+            <div>
+                <h3 class="section-title">Race Schedule</h3>
+                <div id="race-schedule" class="loading">Loading race schedule...</div>
+            </div>
+            <div>
+                <h3 class="section-title">Driver Standings</h3>
+                <div id="driver-standings" class="loading">Loading driver standings...</div>
+            </div>
+            <div>
+                <h3 class="section-title">Constructor Standings</h3>
+                <div id="constructor-standings" class="loading">Loading constructor standings...</div>
+            </div>
+            <div>
+                <h3 class="section-title">Last Race Results</h3>
+                <div id="last-race-results" class="loading">Loading last race results...</div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <p>&copy; 2024 Wheel IQ. All rights reserved.</p>
+    </footer>
+
+    <script src="/js/f1-api.js"></script>
 </body>
 </html> 
