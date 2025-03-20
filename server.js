@@ -13,15 +13,22 @@ var authJwtController = require('./auth_jwt');
 db = require('./db')(); //hack
 var jwt = require('jsonwebtoken');
 var cors = require('cors');
+var path = require('path');
 
 var app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(passport.initialize());
 
 var router = express.Router();
+
+// Welcome page route
+router.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 function getJSONObjectForMovieRequirement(req) {
     var json = {
