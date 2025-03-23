@@ -1,8 +1,12 @@
 // API endpoints
+const BASE_URL = window.location.hostname === 'localhost' 
+    ? '' // Empty for local development
+    : 'https://womens-march-madness.onrender.com'; // Replace with your Render URL
+
 const API = {
-    tournament: '/api/ncaaw/tournament',
-    rankings: '/api/ncaaw/rankings',
-    playByPlay: (gameId) => `/api/ncaaw/game/${gameId}/playbyplay`
+    tournament: `${BASE_URL}/api/ncaaw/tournament`,
+    rankings: `${BASE_URL}/api/ncaaw/rankings`,
+    playByPlay: (gameId) => `${BASE_URL}/api/ncaaw/game/${gameId}/playbyplay`
 };
 
 // Helper function to show loading state
@@ -87,18 +91,96 @@ function groupGamesByDate(games) {
     }, { today: [], tomorrow: [], later: [] });
 }
 
-// Initialize the application
-function initApp() {
-    loadTournamentData();
-    loadNCAARankings();
-    // Refresh data every 30 seconds
-    setInterval(loadTournamentData, 30000);
-    setInterval(loadNCAARankings, 30000);
+// Function to format tweet date
+function formatTweetDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
 }
 
+// Function to load tweets
+async function loadTweets() {
+    try {
+        const tweetsContainer = document.getElementById('news-section');
+        if (!tweetsContainer) return;
+
+        tweetsContainer.innerHTML = '<div class="loading"></div>';
+
+        const response = await fetch('/api/tweets/marchmadness');
+        if (!response.ok) throw new Error('Failed to fetch tweets');
+        
+        const tweets = await response.json();
+        
+        const tweetsList = document.createElement('div');
+        tweetsList.className = 'tweets-list';
+        
+        tweets.forEach(tweet => {
+            const tweetCard = document.createElement('div');
+            tweetCard.className = 'tweet-card';
+            tweetCard.innerHTML = `
+                <div class="tweet-header">
+                    <img src="${tweet.author.profile_image}" alt="${tweet.author.name}" class="tweet-avatar">
+                    <div class="tweet-author">
+                        <div class="tweet-name">${tweet.author.name}</div>
+                        <div class="tweet-username">@${tweet.author.username}</div>
+                    </div>
+                    <div class="tweet-date">${formatTweetDate(tweet.created_at)}</div>
+                </div>
+                <div class="tweet-content">${tweet.text}</div>
+                <div class="tweet-metrics">
+                    <span>❤️ ${tweet.metrics.like_count}</span>
+                    <span>🔄 ${tweet.metrics.retweet_count}</span>
+                    <span>💬 ${tweet.metrics.reply_count}</span>
+                </div>
+            `;
+            tweetsList.appendChild(tweetCard);
+        });
+
+        tweetsContainer.innerHTML = `
+            <h2>March Madness Buzz</h2>
+            <div class="tweets-container">
+                ${tweetsList.outerHTML}
+            </div>
+        `;
+    } catch (error) {
+        console.error('Error loading tweets:', error);
+        const tweetsContainer = document.getElementById('news-section');
+        if (tweetsContainer) {
+            tweetsContainer.innerHTML = '<div class="error">Failed to load tweets</div>';
+        }
+    }
+}
+
+// Update initApp to include tweet loading
+async function initApp() {
+    await Promise.all([
+        loadTournamentData(),
+        loadNCAARankings(),
+        loadTweets()
+    ]);
+}
+
+// Add error handling for API calls
+async function fetchWithRetry(url, options = {}, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+        }
+    }
+}
+
+// Update the fetch calls to use fetchWithRetry
 function loadTournamentData() {
-    fetch(API.tournament)
-        .then(response => response.json())
+    fetchWithRetry(API.tournament)
         .then(data => {
             // Live Games Section
             const liveGamesContainer = document.getElementById('live-games');
@@ -162,7 +244,9 @@ function loadTournamentData() {
             console.error('Error loading tournament data:', error);
             ['live-games', 'upcoming-games', 'completed-games', 'tournament-bracket'].forEach(id => {
                 const container = document.getElementById(id);
-                container.innerHTML = '<div class="error">Error loading tournament data. Please try again later.</div>';
+                if (container) {
+                    container.innerHTML = '<div class="error">Error loading tournament data. Please try again later.</div>';
+                }
             });
         });
 }

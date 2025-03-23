@@ -3,14 +3,29 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
 const axios = require('axios');
+require('dotenv').config();
 
 const app = express();
+
+// CORS configuration
+const corsOptions = {
+    origin: process.env.NODE_ENV === 'production' 
+        ? ['https://your-github-pages-url.com', 'https://your-custom-domain.com'] 
+        : 'http://localhost:3000',
+    optionsSuccessStatus: 200
+};
 
 // ESPN API endpoints for NCAA Women's Basketball
 const ESPN_API = {
     NCAAW_RANKINGS: 'http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/rankings',
     NCAAW_SCOREBOARD: 'http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard',
     NCAAW_GAME_PLAYBYPLAY: (gameId) => `http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event=${gameId}`
+};
+
+// Twitter API configuration
+const TWITTER_API = {
+    BASE_URL: 'https://api.twitter.com/2',
+    BEARER_TOKEN: process.env.TWITTER_BEARER_TOKEN
 };
 
 // Helper function to fetch data from ESPN API
@@ -25,11 +40,38 @@ async function fetchESPNData(url, params = {}) {
     }
 }
 
+// Helper function to fetch tweets
+async function fetchTweets(hashtag) {
+    try {
+        const response = await axios.get(`${TWITTER_API.BASE_URL}/tweets/search/recent`, {
+            headers: {
+                'Authorization': `Bearer ${TWITTER_API.BEARER_TOKEN}`
+            },
+            params: {
+                'query': `#${hashtag} -is:retweet`,
+                'tweet.fields': 'created_at,author_id,public_metrics',
+                'expansions': 'author_id',
+                'user.fields': 'name,username,profile_image_url',
+                'max_results': 10
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Twitter API Error:', error.message);
+        throw error;
+    }
+}
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
 
 // Routes
 app.get('/', (req, res) => {
@@ -45,10 +87,37 @@ app.get('/api/ncaaw/tournament', async (req, res) => {
         const scoreboard = await fetchESPNData(ESPN_API.NCAAW_SCOREBOARD, {
             limit: 100,
             groups: 50,  // NCAA Women's Basketball
-            seasontype: 3  // Postseason
         });
         
-        console.log('Raw scoreboard data:', JSON.stringify(scoreboard.events?.length || 0, null, 2));
+        // Add detailed logging
+        console.log('Full API Response:', {
+            totalEvents: scoreboard.events?.length,
+            events: scoreboard.events?.map(event => ({
+                id: event.id,
+                date: event.date,
+                name: event.name,
+                status: event.status?.type?.state
+            }))
+        });
+
+        // Find the next upcoming game
+        const now = new Date();
+        console.log('Current time:', now.toISOString());
+        
+        const upcomingGames = scoreboard.events
+            ?.filter(event => {
+                const gameDate = new Date(event.date);
+                const isUpcoming = gameDate > now;
+                console.log(`Game ${event.name} at ${event.date} - Is upcoming: ${isUpcoming}`);
+                return isUpcoming;
+            })
+            ?.sort((a, b) => new Date(a.date) - new Date(b.date)) || [];
+            
+        console.log('Filtered upcoming games:', upcomingGames.map(game => ({
+            date: game.date,
+            name: game.name,
+            status: game.status?.type?.state
+        })));
 
         // Process league and season info
         const leagueInfo = scoreboard.leagues?.[0] || {};
@@ -171,13 +240,10 @@ app.get('/api/ncaaw/tournament', async (req, res) => {
                 upcoming: games.filter(g => {
                     if (g.status.state !== 'pre') return false;
                     const gameDate = new Date(g.date);
-                    const today = new Date();
-                    const tomorrow = new Date(today);
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    tomorrow.setHours(23, 59, 59, 999);
+                    const now = new Date();
                     
-                    // Only include games scheduled for today or tomorrow
-                    return gameDate <= tomorrow;
+                    // Include any future games
+                    return gameDate > now;
                 }),
                 completed: games.filter(g => g.status.state === 'post')
             },
@@ -264,7 +330,39 @@ app.get('/api/ncaaw/game/:gameId/playbyplay', async (req, res) => {
     }
 });
 
+// Add Twitter endpoint
+app.get('/api/tweets/marchmadness', async (req, res) => {
+    try {
+        const tweets = await fetchTweets('marchmadness');
+        
+        // Process tweets to include user information
+        const users = tweets.includes.users.reduce((acc, user) => {
+            acc[user.id] = user;
+            return acc;
+        }, {});
+
+        const formattedTweets = tweets.data.map(tweet => ({
+            id: tweet.id,
+            text: tweet.text,
+            created_at: tweet.created_at,
+            metrics: tweet.public_metrics,
+            author: {
+                id: tweet.author_id,
+                name: users[tweet.author_id].name,
+                username: users[tweet.author_id].username,
+                profile_image: users[tweet.author_id].profile_image_url
+            }
+        }));
+
+        res.json(formattedTweets);
+    } catch (error) {
+        console.error('Twitter API Error:', error);
+        res.status(500).json({ error: 'Failed to fetch tweets' });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 }); 

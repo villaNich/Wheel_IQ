@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: womens-march-madness
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: TWITTER_BEARER_TOKEN
+        sync: false
+    autoDeploy: true 
