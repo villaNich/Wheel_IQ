@@ -17,9 +17,9 @@ const corsOptions = {
 
 // ESPN API endpoints for NCAA Women's Basketball
 const ESPN_API = {
-    NCAAW_RANKINGS: 'http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/rankings',
-    NCAAW_SCOREBOARD: 'http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard',
-    NCAAW_GAME_PLAYBYPLAY: (gameId) => `http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event=${gameId}`
+    NCAAW_RANKINGS: 'https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/rankings',
+    NCAAW_SCOREBOARD: 'https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard',
+    NCAAW_GAME_PLAYBYPLAY: (gameId) => `https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event=${gameId}`
 };
 
 // Twitter API configuration
@@ -295,11 +295,26 @@ app.get('/api/ncaaw/rankings', async (req, res) => {
 app.get('/api/ncaaw/game/:gameId/playbyplay', async (req, res) => {
     try {
         const { gameId } = req.params;
+        console.log(`Fetching play-by-play data for game ${gameId}`);
+        
         const data = await fetchESPNData(ESPN_API.NCAAW_GAME_PLAYBYPLAY(gameId));
+        console.log('Play-by-play API response:', {
+            hasPlays: Boolean(data.plays),
+            playsCount: data.plays?.length || 0,
+            hasDrives: Boolean(data.drives),
+            drivesCount: data.drives?.length || 0
+        });
+        
+        if (!data.plays) {
+            return res.status(404).json({ 
+                error: 'No play-by-play data available',
+                gameId,
+                timestamp: new Date().toISOString()
+            });
+        }
         
         // Process the play-by-play data
         const plays = data.plays || [];
-        const drives = data.drives || [];
         const gameInfo = {
             clock: data.clock,
             period: data.period,
@@ -320,13 +335,23 @@ app.get('/api/ncaaw/game/:gameId/playbyplay', async (req, res) => {
                 text: play.text,
                 scoreValue: play.scoreValue,
                 team: play.team?.abbreviation
-            }))
+            })) || []
         };
         
         res.json(gameInfo);
     } catch (error) {
-        console.error('Play-by-play Error:', error.message);
-        res.status(500).json({ error: 'Failed to fetch play-by-play data' });
+        console.error('Play-by-play Error:', {
+            message: error.message,
+            gameId: req.params.gameId,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+        });
+        res.status(500).json({ 
+            error: 'Failed to fetch play-by-play data',
+            message: error.message,
+            gameId: req.params.gameId,
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
