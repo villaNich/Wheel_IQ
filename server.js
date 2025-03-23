@@ -1,199 +1,270 @@
-/*
-CSC3916 HW2
-File: Server.js
-Description: Web API scaffolding for Movie API
- */
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const path = require('path');
+const axios = require('axios');
 
-var express = require('express');
-var http = require('http');
-var bodyParser = require('body-parser');
-var passport = require('passport');
-var authController = require('./auth');
-var authJwtController = require('./auth_jwt');
-db = require('./db')(); //hack
-var jwt = require('jsonwebtoken');
-var cors = require('cors');
-var path = require('path');
-var WebSocket = require('ws');
+const app = express();
 
-var app = express();
-var server = http.createServer(app);
-var wss = new WebSocket.Server({ server });
-
-// Store connected users and messages
-const users = new Map();
-const messages = [];
-
-// Add default user for testing
-const defaultUser = {
-    id: 'default',
-    username: 'TestUser',
-    avatar: 'default-avatar.png'
+// ESPN API endpoints for NCAA Women's Basketball
+const ESPN_API = {
+    NCAAW_RANKINGS: 'http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/rankings',
+    NCAAW_SCOREBOARD: 'http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/scoreboard',
+    NCAAW_GAME_PLAYBYPLAY: (gameId) => `http://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event=${gameId}`
 };
 
+// Helper function to fetch data from ESPN API
+async function fetchESPNData(url, params = {}) {
+    try {
+        console.log('Fetching from URL:', url, 'with params:', params);
+        const response = await axios.get(url, { params });
+        return response.data;
+    } catch (error) {
+        console.error('ESPN API Error:', error.message);
+        throw error;
+    }
+}
+
+// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-var router = express.Router();
-
-// Welcome page route
-router.get('/', (req, res) => {
+// Routes
+app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Add a route to get default user info
-router.get('/api/default-user', (req, res) => {
-    res.json(defaultUser);
-});
+// NCAA Women's March Madness Endpoints
+app.get('/api/ncaaw/tournament', async (req, res) => {
+    try {
+        console.log('Fetching tournament data...');
+        
+        // Get current scoreboard data with specific parameters
+        const scoreboard = await fetchESPNData(ESPN_API.NCAAW_SCOREBOARD, {
+            limit: 100,
+            groups: 50,  // NCAA Women's Basketball
+            seasontype: 3  // Postseason
+        });
+        
+        console.log('Raw scoreboard data:', JSON.stringify(scoreboard.events?.length || 0, null, 2));
 
-function getJSONObjectForMovieRequirement(req) {
-    var json = {
-        headers: "No headers",
-        key: process.env.UNIQUE_KEY,
-        body: "No body"
-    };
+        // Process league and season info
+        const leagueInfo = scoreboard.leagues?.[0] || {};
+        const seasonInfo = leagueInfo.season || {};
 
-    if (req.body != null) {
-        json.body = req.body;
-    }
+        // Process games data with enhanced error handling
+        const games = (scoreboard.events || []).map(event => {
+            try {
+                const competition = event.competitions?.[0];
+                if (!competition) return null;
 
-    if (req.headers != null) {
-        json.headers = req.headers;
-    }
+                const homeTeam = competition.competitors?.find(c => c.homeAway === 'home');
+                const awayTeam = competition.competitors?.find(c => c.homeAway === 'away');
+                if (!homeTeam || !awayTeam) return null;
 
-    return json;
-}
+                // Get tournament specific information
+                const notes = competition.notes || [];
+                const roundInfo = notes.find(n => n.type === "round");
+                const regionInfo = notes.find(n => n.type === "region");
+                const bracketInfo = notes.find(n => n.type === "tournament");
 
-router.post('/signup', (req, res) => {
-    if (!req.body.username || !req.body.password) {
-        res.json({success: false, msg: 'Please include both username and password to signup.'})
-    } else {
-        var newUser = {
-            username: req.body.username,
-            password: req.body.password
+                return {
+                    id: event.id,
+                    date: event.date,
+                    name: event.name,
+                    shortName: event.shortName,
+                    status: {
+                        clock: event.status?.clock,
+                        displayClock: event.status?.displayClock,
+                        period: event.status?.period,
+                        type: event.status?.type?.name,
+                        state: event.status?.type?.state,
+                        completed: event.status?.type?.completed,
+                        description: event.status?.type?.description
+                    },
+                    teams: {
+                        home: {
+                            id: homeTeam.team?.id,
+                            name: homeTeam.team?.name,
+                            abbreviation: homeTeam.team?.abbreviation,
+                            displayName: homeTeam.team?.displayName,
+                            score: homeTeam.score,
+                            seed: homeTeam.curatedRank?.seed,
+                            winner: homeTeam.winner,
+                            records: homeTeam.records,
+                            logo: homeTeam.team?.logo
+                        },
+                        away: {
+                            id: awayTeam.team?.id,
+                            name: awayTeam.team?.name,
+                            abbreviation: awayTeam.team?.abbreviation,
+                            displayName: awayTeam.team?.displayName,
+                            score: awayTeam.score,
+                            seed: awayTeam.curatedRank?.seed,
+                            winner: awayTeam.winner,
+                            records: awayTeam.records,
+                            logo: awayTeam.team?.logo
+                        }
+                    },
+                    venue: competition.venue ? {
+                        name: competition.venue.fullName,
+                        city: competition.venue.address?.city,
+                        state: competition.venue.address?.state,
+                        capacity: competition.venue.capacity,
+                        indoor: competition.venue.indoor
+                    } : null,
+                    broadcasts: competition.broadcasts?.map(b => b.names).flat() || [],
+                    bracketInfo: {
+                        round: roundInfo?.value,
+                        region: regionInfo?.value,
+                        bracketType: bracketInfo?.value
+                    },
+                    links: event.links?.map(link => ({
+                        rel: link.rel,
+                        href: link.href,
+                        text: link.text
+                    })) || []
+                };
+            } catch (error) {
+                console.error('Error processing game:', error);
+                return null;
+            }
+        }).filter(game => game !== null);
+
+        // Organize games by round
+        const gamesByRound = {
+            "First Four": [],
+            "First Round": [],
+            "Second Round": [],
+            "Sweet 16": [],
+            "Elite Eight": [],
+            "Final Four": [],
+            "Championship": []
         };
 
-        db.save(newUser); //no duplicate checking
-        res.json({success: true, msg: 'Successfully created new user.'})
+        games.forEach(game => {
+            const round = game.bracketInfo.round || "Unknown";
+            if (gamesByRound[round]) {
+                gamesByRound[round].push(game);
+            }
+        });
+
+        const response = {
+            tournament: {
+                name: 'NCAA Women\'s Basketball Tournament',
+                season: {
+                    year: seasonInfo.year,
+                    displayName: seasonInfo.displayName,
+                    type: seasonInfo.type?.name
+                }
+            },
+            rounds: Object.entries(gamesByRound)
+                .filter(([_, games]) => games.length > 0)
+                .map(([roundName, games]) => ({
+                    name: roundName,
+                    games: games.sort((a, b) => new Date(a.date) - new Date(b.date))
+                })),
+            games: {
+                live: games.filter(g => g.status.state === 'in'),
+                upcoming: games.filter(g => {
+                    if (g.status.state !== 'pre') return false;
+                    const gameDate = new Date(g.date);
+                    const today = new Date();
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(23, 59, 59, 999);
+                    
+                    // Only include games scheduled for today or tomorrow
+                    return gameDate <= tomorrow;
+                }),
+                completed: games.filter(g => g.status.state === 'post')
+            },
+            calendar: leagueInfo.calendar || [],
+            lastUpdated: new Date().toISOString()
+        };
+
+        res.json(response);
+    } catch (error) {
+        console.error('Tournament Error:', {
+            message: error.message,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+        });
+        res.status(500).json({ 
+            error: 'Failed to fetch tournament data',
+            message: error.message,
+            timestamp: new Date().toISOString()
+        });
     }
 });
 
-router.post('/signin', (req, res) => {
-    var user = db.findOne(req.body.username);
+app.get('/api/ncaaw/rankings', async (req, res) => {
+    try {
+        const data = await fetchESPNData(ESPN_API.NCAAW_RANKINGS);
+        
+        // Get AP Top 25 rankings (index 0 is typically AP rankings)
+        const rankings = data.rankings[0]?.ranks || [];
+        
+        // Format the rankings data
+        const formattedRankings = rankings.map(rank => ({
+            rank: rank.current,
+            previousRank: rank.previous || rank.current,
+            team: {
+                name: rank.team.name,
+                logo: rank.team.logos?.[0]?.href || null
+            },
+            record: `${rank.recordSummary || '0-0'}`
+        }));
 
-    if (!user) {
-        res.status(401).send({success: false, msg: 'Authentication failed. User not found.'});
-    } else {
-        if (req.body.password == user.password) {
-            var userToken = { id: user.id, username: user.username };
-            var token = jwt.sign(userToken, process.env.SECRET_KEY);
-            res.json ({success: true, token: 'JWT ' + token});
-        }
-        else {
-            res.status(401).send({success: false, msg: 'Authentication failed.'});
-        }
+        res.json(formattedRankings);
+    } catch (error) {
+        console.error('Rankings Error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch rankings' });
     }
 });
 
-router.route('/testcollection')
-    .delete(authController.isAuthenticated, (req, res) => {
-        console.log(req.body);
-        res = res.status(200);
-        if (req.get('Content-Type')) {
-            res = res.type(req.get('Content-Type'));
-        }
-        var o = getJSONObjectForMovieRequirement(req);
-        res.json(o);
+// Add new endpoint for play-by-play data
+app.get('/api/ncaaw/game/:gameId/playbyplay', async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const data = await fetchESPNData(ESPN_API.NCAAW_GAME_PLAYBYPLAY(gameId));
+        
+        // Process the play-by-play data
+        const plays = data.plays || [];
+        const drives = data.drives || [];
+        const gameInfo = {
+            clock: data.clock,
+            period: data.period,
+            possessionArrow: data.possessionArrow,
+            recentPlays: plays.slice(-10).map(play => ({
+                id: play.id,
+                clock: play.clock?.displayValue,
+                period: play.period?.number,
+                text: play.text,
+                scoreValue: play.scoreValue,
+                team: play.team?.abbreviation,
+                type: play.type?.text
+            })),
+            scoring: data.scoringPlays?.map(play => ({
+                id: play.id,
+                clock: play.clock?.displayValue,
+                period: play.period?.number,
+                text: play.text,
+                scoreValue: play.scoreValue,
+                team: play.team?.abbreviation
+            }))
+        };
+        
+        res.json(gameInfo);
+    } catch (error) {
+        console.error('Play-by-play Error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch play-by-play data' });
     }
-    )
-    .put(authJwtController.isAuthenticated, (req, res) => {
-        console.log(req.body);
-        res = res.status(200);
-        if (req.get('Content-Type')) {
-            res = res.type(req.get('Content-Type'));
-        }
-        var o = getJSONObjectForMovieRequirement(req);
-        res.json(o);
-    }
-    );
-    
-app.use('/', router);
-
-// WebSocket connection handling
-wss.on('connection', (ws) => {
-    let userId = defaultUser.id;
-    let username = defaultUser.username;
-    let avatar = defaultUser.avatar;
-
-    // Automatically join with default user
-    users.set(userId, { ws, username, avatar });
-    
-    // Send message history to new user
-    ws.send(JSON.stringify({
-        type: 'history',
-        messages: messages.slice(-50)
-    }));
-
-    // Broadcast user joined message
-    broadcast({
-        type: 'system',
-        content: `${username} joined the chat`
-    });
-
-    ws.on('message', (message) => {
-        const data = JSON.parse(message);
-
-        switch (data.type) {
-            case 'message':
-                const messageData = {
-                    type: 'message',
-                    userId,
-                    username,
-                    avatar,
-                    content: data.content,
-                    timestamp: new Date().toISOString()
-                };
-                messages.push(messageData);
-                broadcast(messageData);
-                break;
-
-            case 'typing':
-                broadcast({
-                    type: 'typing',
-                    userId,
-                    username,
-                    isTyping: data.isTyping
-                });
-                break;
-        }
-    });
-
-    ws.on('close', () => {
-        if (userId) {
-            users.delete(userId);
-            broadcast({
-                type: 'system',
-                content: `${username} left the chat`
-            });
-        }
-    });
 });
 
-function broadcast(data) {
-    wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify(data));
-        }
-    });
-}
-
-// Update the server listen call
-server.listen(process.env.PORT || 8080, () => {
-    console.log(`Server is running on port ${process.env.PORT || 8080}`);
-});
-
-module.exports = app; // for testing only
-
-
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+}); 
