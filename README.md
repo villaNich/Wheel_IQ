@@ -42,10 +42,6 @@ npm run dev
 
 5. Open `http://localhost:3000` in your browser
 
-## Deployment
-
-The site is deployed using GitHub Pages for the frontend, and the backend API is hosted separately.
-
 ## Contributing
 
 1. Fork the repository

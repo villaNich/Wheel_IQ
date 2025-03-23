@@ -10,7 +10,7 @@ const app = express();
 // CORS configuration
 const corsOptions = {
     origin: process.env.NODE_ENV === 'production' 
-        ? ['https://your-github-pages-url.com', 'https://your-custom-domain.com'] 
+        ? 'http://localhost:3000'
         : 'http://localhost:3000',
     optionsSuccessStatus: 200
 };
