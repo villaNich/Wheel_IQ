@@ -87,19 +87,153 @@ function groupGamesByDate(games) {
     }, { today: [], tomorrow: [], later: [] });
 }
 
-// Initialize the application
-function initApp() {
-    loadTournamentData();
-    loadNCAARankings();
-    // Refresh data every 30 seconds
-    setInterval(loadTournamentData, 30000);
-    setInterval(loadNCAARankings, 30000);
+// Function to format tweet date
+function formatTweetDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// Function to load tweets
+async function loadTweets() {
+    try {
+        const newsContainer = document.getElementById('march-madness-news');
+        if (!newsContainer) return;
+
+        newsContainer.innerHTML = '<div class="loading"></div>';
+
+        const response = await fetch('/api/tweets/marchmadness');
+        if (!response.ok) throw new Error('Failed to fetch tweets');
+        
+        const tweets = await response.json();
+        
+        const tweetsList = document.createElement('div');
+        tweetsList.className = 'tweets-list';
+        
+        tweets.forEach(tweet => {
+            const tweetCard = document.createElement('div');
+            tweetCard.className = 'tweet-card';
+            tweetCard.innerHTML = `
+                <div class="tweet-header">
+                    <img src="${tweet.author.profile_image}" alt="${tweet.author.name}" class="tweet-avatar">
+                    <div class="tweet-author">
+                        <div class="tweet-name">${tweet.author.name}</div>
+                        <div class="tweet-username">@${tweet.author.username}</div>
+                    </div>
+                    <div class="tweet-date">${formatTweetDate(tweet.created_at)}</div>
+                </div>
+                <div class="tweet-content">${tweet.text}</div>
+                <div class="tweet-metrics">
+                    <span>❤️ ${tweet.metrics.like_count}</span>
+                    <span>🔄 ${tweet.metrics.retweet_count}</span>
+                    <span>💬 ${tweet.metrics.reply_count}</span>
+                </div>
+            `;
+            tweetsList.appendChild(tweetCard);
+        });
+
+        newsContainer.innerHTML = '';
+        newsContainer.appendChild(tweetsList);
+    } catch (error) {
+        console.error('Error loading tweets:', error);
+        const newsContainer = document.getElementById('march-madness-news');
+        if (newsContainer) {
+            newsContainer.innerHTML = '<div class="error">Failed to load tweets</div>';
+        }
+    }
+}
+
+// Update initApp to include tweet loading
+async function initApp() {
+    await Promise.all([
+        loadTournamentData(),
+        loadNCAARankings(),
+        loadTweets()
+    ]);
+}
+
+// Add error handling for API calls
+async function fetchWithRetry(url, options = {}, retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1))); // Exponential backoff
+        }
+    }
+}
+
+// Helper functions for game storage
+function saveCompletedGame(game) {
+    try {
+        const storage = JSON.parse(localStorage.getItem('completedGames') || '{}');
+        const now = new Date().getTime();
+        
+        // Remove games older than 24 hours
+        Object.keys(storage).forEach(gameId => {
+            if (now - storage[gameId].savedAt > 24 * 60 * 60 * 1000) {
+                delete storage[gameId];
+            }
+        });
+        
+        // Save the new game with timestamp
+        storage[game.id] = {
+            game,
+            savedAt: now
+        };
+        
+        localStorage.setItem('completedGames', JSON.stringify(storage));
+    } catch (error) {
+        console.error('Error saving completed game:', error);
+    }
+}
+
+function getCompletedGames() {
+    try {
+        const storage = JSON.parse(localStorage.getItem('completedGames') || '{}');
+        const now = new Date().getTime();
+        const games = [];
+        
+        Object.keys(storage).forEach(gameId => {
+            if (now - storage[gameId].savedAt <= 24 * 60 * 60 * 1000) {
+                games.push(storage[gameId].game);
+            }
+        });
+        
+        return games;
+    } catch (error) {
+        console.error('Error getting completed games:', error);
+        return [];
+    }
 }
 
 function loadTournamentData() {
-    fetch(API.tournament)
-        .then(response => response.json())
+    fetchWithRetry(API.tournament)
         .then(data => {
+            // Save completed games to local storage
+            data.games.completed.forEach(game => saveCompletedGame(game));
+            
+            // Merge API completed games with stored completed games
+            const storedGames = getCompletedGames();
+            const allCompletedGames = [...data.games.completed];
+            
+            // Add stored games that aren't in the API response
+            storedGames.forEach(storedGame => {
+                if (!allCompletedGames.some(g => g.id === storedGame.id)) {
+                    allCompletedGames.push(storedGame);
+                }
+            });
+            
+            // Sort completed games by date, most recent first
+            allCompletedGames.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
             // Live Games Section
             const liveGamesContainer = document.getElementById('live-games');
             if (data.games.live.length > 0) {
@@ -130,10 +264,10 @@ function loadTournamentData() {
 
             // Completed Games Section
             const completedGamesContainer = document.getElementById('completed-games');
-            if (data.games.completed.length > 0) {
+            if (allCompletedGames.length > 0) {
                 const gamesGrid = document.createElement('div');
                 gamesGrid.className = 'games-grid';
-                data.games.completed.forEach(game => {
+                allCompletedGames.forEach(game => {
                     gamesGrid.appendChild(createGameCard(game));
                 });
                 completedGamesContainer.innerHTML = '';
@@ -142,10 +276,22 @@ function loadTournamentData() {
                 completedGamesContainer.innerHTML = '<div class="no-games">No completed games</div>';
             }
 
-            // Also load the tournament bracket
+            // Update tournament bracket with completed games from storage
             const bracketContainer = document.getElementById('tournament-bracket');
             if (data.rounds.length > 0) {
-                const bracketHTML = data.rounds.map(round => `
+                // Merge stored completed games into rounds
+                const rounds = data.rounds.map(round => {
+                    const games = round.games.map(game => {
+                        if (game.status.state === 'post') {
+                            const storedGame = storedGames.find(g => g.id === game.id);
+                            return storedGame || game;
+                        }
+                        return game;
+                    });
+                    return { ...round, games };
+                });
+
+                const bracketHTML = rounds.map(round => `
                     <div class="round">
                         <h4>${round.name}</h4>
                         <div class="games-grid">
@@ -160,29 +306,28 @@ function loadTournamentData() {
         })
         .catch(error => {
             console.error('Error loading tournament data:', error);
-            ['live-games', 'upcoming-games', 'completed-games', 'tournament-bracket'].forEach(id => {
+            
+            // If API fails, show stored completed games
+            const completedGamesContainer = document.getElementById('completed-games');
+            const storedGames = getCompletedGames();
+            
+            if (storedGames.length > 0) {
+                const gamesGrid = document.createElement('div');
+                gamesGrid.className = 'games-grid';
+                storedGames.forEach(game => {
+                    gamesGrid.appendChild(createGameCard(game));
+                });
+                completedGamesContainer.innerHTML = '';
+                completedGamesContainer.appendChild(gamesGrid);
+            }
+            
+            ['live-games', 'upcoming-games', 'tournament-bracket'].forEach(id => {
                 const container = document.getElementById(id);
-                container.innerHTML = '<div class="error">Error loading tournament data. Please try again later.</div>';
+                if (container) {
+                    container.innerHTML = '<div class="error">Error loading tournament data. Please try again later.</div>';
+                }
             });
         });
-}
-
-function createSection(title, games) {
-    const section = document.createElement('div');
-    section.className = 'games-section';
-    
-    const header = document.createElement('h2');
-    header.textContent = title;
-    section.appendChild(header);
-    
-    const gamesGrid = document.createElement('div');
-    gamesGrid.className = 'games-grid';
-    games.forEach(game => {
-        gamesGrid.appendChild(createGameCard(game));
-    });
-    section.appendChild(gamesGrid);
-    
-    return section;
 }
 
 function createGameCard(game) {
@@ -244,27 +389,94 @@ function createGameCard(game) {
         // Fetch initial play-by-play data
         loadPlayByPlay(game.id, playByPlay);
         
-        // Update play-by-play every 30 seconds for live games
-        setInterval(() => loadPlayByPlay(game.id, playByPlay), 30000);
+        // Store interval ID for cleanup
+        const intervalId = setInterval(() => loadPlayByPlay(game.id, playByPlay), 30000);
+        playByPlay.setAttribute('data-interval-id', intervalId);
     }
 
-    // Venue information
-    if (game.venue) {
-        const venue = document.createElement('div');
-        venue.className = 'venue';
-        venue.textContent = `${game.venue.name}, ${game.venue.city}, ${game.venue.state}`;
-        card.appendChild(venue);
-    }
+    // Venue and broadcast info
+    if (game.venue || (game.broadcasts && game.broadcasts.length > 0)) {
+        const info = document.createElement('div');
+        info.className = 'game-info';
+        
+        if (game.venue) {
+            const venue = document.createElement('div');
+            venue.className = 'venue';
+            venue.textContent = `${game.venue.name}, ${game.venue.city}, ${game.venue.state}`;
+            info.appendChild(venue);
+        }
 
-    // Broadcast information
-    if (game.broadcasts && game.broadcasts.length > 0) {
-        const broadcast = document.createElement('div');
-        broadcast.className = 'broadcast';
-        broadcast.textContent = `Watch on: ${game.broadcasts.join(', ')}`;
-        card.appendChild(broadcast);
+        if (game.broadcasts && game.broadcasts.length > 0) {
+            const broadcast = document.createElement('div');
+            broadcast.className = 'broadcast';
+            broadcast.textContent = `Watch on: ${game.broadcasts.join(', ')}`;
+            info.appendChild(broadcast);
+        }
+
+        card.appendChild(info);
     }
 
     return card;
+}
+
+async function loadPlayByPlay(gameId, container) {
+    try {
+        const response = await fetchWithRetry(API.playByPlay(gameId));
+        
+        if (!response || (!response.recentPlays && !response.scoring)) {
+            throw new Error('No play-by-play data available');
+        }
+        
+        const playsHTML = `
+            <div class="play-by-play-content">
+                ${response.recentPlays && response.recentPlays.length > 0 ? `
+                    <div class="recent-plays">
+                        <h4>Recent Plays</h4>
+                        <div class="plays-list">
+                            ${response.recentPlays.reverse().map(play => `
+                                <div class="play ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
+                                    <div class="play-time">${play.period}Q ${play.clock}</div>
+                                    <div class="play-text">${play.text}</div>
+                                    ${play.scoreValue ? `<div class="play-score">+${play.scoreValue}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                ${response.scoring && response.scoring.length > 0 ? `
+                    <div class="scoring-plays">
+                        <h4>Scoring Plays</h4>
+                        <div class="plays-list">
+                            ${response.scoring.reverse().map(play => `
+                                <div class="play scoring ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
+                                    <div class="play-time">${play.period}Q ${play.clock}</div>
+                                    <div class="play-text">${play.text}</div>
+                                    <div class="play-score">+${play.scoreValue}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+        
+        container.innerHTML = playsHTML || '<div class="no-plays">No play-by-play data available</div>';
+    } catch (error) {
+        console.error('Error loading play-by-play:', error);
+        container.innerHTML = `<div class="error">Unable to load play-by-play updates</div>`;
+        
+        // If the error persists, stop trying to update after 3 failures
+        const failCount = (container.getAttribute('data-fail-count') || 0) + 1;
+        container.setAttribute('data-fail-count', failCount);
+        
+        if (failCount >= 3) {
+            const intervalId = container.getAttribute('data-interval-id');
+            if (intervalId) {
+                clearInterval(parseInt(intervalId));
+                container.removeAttribute('data-interval-id');
+            }
+        }
+    }
 }
 
 // Fetch and display NCAA rankings
@@ -300,49 +512,6 @@ async function loadNCAARankings() {
     } catch (error) {
         console.error('Error loading rankings:', error);
         showError(elementId, 'Failed to load NCAA rankings');
-    }
-}
-
-// Function to load play-by-play data
-async function loadPlayByPlay(gameId, container) {
-    try {
-        const response = await fetch(API.playByPlay(gameId));
-        const data = await response.json();
-        
-        // Create play-by-play HTML
-        const playsHTML = `
-            <div class="play-by-play-content">
-                <div class="recent-plays">
-                    <h4>Recent Plays</h4>
-                    <div class="plays-list">
-                        ${data.recentPlays.reverse().map(play => `
-                            <div class="play ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
-                                <div class="play-time">${play.period}Q ${play.clock}</div>
-                                <div class="play-text">${play.text}</div>
-                                ${play.scoreValue ? `<div class="play-score">+${play.scoreValue}</div>` : ''}
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                <div class="scoring-plays">
-                    <h4>Scoring Plays</h4>
-                    <div class="plays-list">
-                        ${data.scoring.reverse().map(play => `
-                            <div class="play scoring ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
-                                <div class="play-time">${play.period}Q ${play.clock}</div>
-                                <div class="play-text">${play.text}</div>
-                                <div class="play-score">+${play.scoreValue}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        container.innerHTML = playsHTML;
-    } catch (error) {
-        console.error('Error loading play-by-play:', error);
-        container.innerHTML = '<div class="error">Unable to load play-by-play updates</div>';
     }
 }
 
