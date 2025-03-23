@@ -1,12 +1,8 @@
 // API endpoints
-const BASE_URL = window.location.hostname === 'localhost' 
-    ? '' // Empty for local development
-    : 'https://womens-march-madness.onrender.com'; // Replace with your Render URL
-
 const API = {
-    tournament: `${BASE_URL}/api/ncaaw/tournament`,
-    rankings: `${BASE_URL}/api/ncaaw/rankings`,
-    playByPlay: (gameId) => `${BASE_URL}/api/ncaaw/game/${gameId}/playbyplay`
+    tournament: '/api/ncaaw/tournament',
+    rankings: '/api/ncaaw/rankings',
+    playByPlay: (gameId) => `/api/ncaaw/game/${gameId}/playbyplay`
 };
 
 // Helper function to show loading state
@@ -105,10 +101,10 @@ function formatTweetDate(dateString) {
 // Function to load tweets
 async function loadTweets() {
     try {
-        const tweetsContainer = document.getElementById('news-section');
-        if (!tweetsContainer) return;
+        const newsContainer = document.getElementById('march-madness-news');
+        if (!newsContainer) return;
 
-        tweetsContainer.innerHTML = '<div class="loading"></div>';
+        newsContainer.innerHTML = '<div class="loading"></div>';
 
         const response = await fetch('/api/tweets/marchmadness');
         if (!response.ok) throw new Error('Failed to fetch tweets');
@@ -140,17 +136,13 @@ async function loadTweets() {
             tweetsList.appendChild(tweetCard);
         });
 
-        tweetsContainer.innerHTML = `
-            <h2>March Madness Buzz</h2>
-            <div class="tweets-container">
-                ${tweetsList.outerHTML}
-            </div>
-        `;
+        newsContainer.innerHTML = '';
+        newsContainer.appendChild(tweetsList);
     } catch (error) {
         console.error('Error loading tweets:', error);
-        const tweetsContainer = document.getElementById('news-section');
-        if (tweetsContainer) {
-            tweetsContainer.innerHTML = '<div class="error">Failed to load tweets</div>';
+        const newsContainer = document.getElementById('march-madness-news');
+        if (newsContainer) {
+            newsContainer.innerHTML = '<div class="error">Failed to load tweets</div>';
         }
     }
 }
@@ -178,10 +170,70 @@ async function fetchWithRetry(url, options = {}, retries = 3) {
     }
 }
 
-// Update the fetch calls to use fetchWithRetry
+// Helper functions for game storage
+function saveCompletedGame(game) {
+    try {
+        const storage = JSON.parse(localStorage.getItem('completedGames') || '{}');
+        const now = new Date().getTime();
+        
+        // Remove games older than 24 hours
+        Object.keys(storage).forEach(gameId => {
+            if (now - storage[gameId].savedAt > 24 * 60 * 60 * 1000) {
+                delete storage[gameId];
+            }
+        });
+        
+        // Save the new game with timestamp
+        storage[game.id] = {
+            game,
+            savedAt: now
+        };
+        
+        localStorage.setItem('completedGames', JSON.stringify(storage));
+    } catch (error) {
+        console.error('Error saving completed game:', error);
+    }
+}
+
+function getCompletedGames() {
+    try {
+        const storage = JSON.parse(localStorage.getItem('completedGames') || '{}');
+        const now = new Date().getTime();
+        const games = [];
+        
+        Object.keys(storage).forEach(gameId => {
+            if (now - storage[gameId].savedAt <= 24 * 60 * 60 * 1000) {
+                games.push(storage[gameId].game);
+            }
+        });
+        
+        return games;
+    } catch (error) {
+        console.error('Error getting completed games:', error);
+        return [];
+    }
+}
+
 function loadTournamentData() {
     fetchWithRetry(API.tournament)
         .then(data => {
+            // Save completed games to local storage
+            data.games.completed.forEach(game => saveCompletedGame(game));
+            
+            // Merge API completed games with stored completed games
+            const storedGames = getCompletedGames();
+            const allCompletedGames = [...data.games.completed];
+            
+            // Add stored games that aren't in the API response
+            storedGames.forEach(storedGame => {
+                if (!allCompletedGames.some(g => g.id === storedGame.id)) {
+                    allCompletedGames.push(storedGame);
+                }
+            });
+            
+            // Sort completed games by date, most recent first
+            allCompletedGames.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
             // Live Games Section
             const liveGamesContainer = document.getElementById('live-games');
             if (data.games.live.length > 0) {
@@ -212,10 +264,10 @@ function loadTournamentData() {
 
             // Completed Games Section
             const completedGamesContainer = document.getElementById('completed-games');
-            if (data.games.completed.length > 0) {
+            if (allCompletedGames.length > 0) {
                 const gamesGrid = document.createElement('div');
                 gamesGrid.className = 'games-grid';
-                data.games.completed.forEach(game => {
+                allCompletedGames.forEach(game => {
                     gamesGrid.appendChild(createGameCard(game));
                 });
                 completedGamesContainer.innerHTML = '';
@@ -224,10 +276,22 @@ function loadTournamentData() {
                 completedGamesContainer.innerHTML = '<div class="no-games">No completed games</div>';
             }
 
-            // Also load the tournament bracket
+            // Update tournament bracket with completed games from storage
             const bracketContainer = document.getElementById('tournament-bracket');
             if (data.rounds.length > 0) {
-                const bracketHTML = data.rounds.map(round => `
+                // Merge stored completed games into rounds
+                const rounds = data.rounds.map(round => {
+                    const games = round.games.map(game => {
+                        if (game.status.state === 'post') {
+                            const storedGame = storedGames.find(g => g.id === game.id);
+                            return storedGame || game;
+                        }
+                        return game;
+                    });
+                    return { ...round, games };
+                });
+
+                const bracketHTML = rounds.map(round => `
                     <div class="round">
                         <h4>${round.name}</h4>
                         <div class="games-grid">
@@ -242,31 +306,28 @@ function loadTournamentData() {
         })
         .catch(error => {
             console.error('Error loading tournament data:', error);
-            ['live-games', 'upcoming-games', 'completed-games', 'tournament-bracket'].forEach(id => {
+            
+            // If API fails, show stored completed games
+            const completedGamesContainer = document.getElementById('completed-games');
+            const storedGames = getCompletedGames();
+            
+            if (storedGames.length > 0) {
+                const gamesGrid = document.createElement('div');
+                gamesGrid.className = 'games-grid';
+                storedGames.forEach(game => {
+                    gamesGrid.appendChild(createGameCard(game));
+                });
+                completedGamesContainer.innerHTML = '';
+                completedGamesContainer.appendChild(gamesGrid);
+            }
+            
+            ['live-games', 'upcoming-games', 'tournament-bracket'].forEach(id => {
                 const container = document.getElementById(id);
                 if (container) {
                     container.innerHTML = '<div class="error">Error loading tournament data. Please try again later.</div>';
                 }
             });
         });
-}
-
-function createSection(title, games) {
-    const section = document.createElement('div');
-    section.className = 'games-section';
-    
-    const header = document.createElement('h2');
-    header.textContent = title;
-    section.appendChild(header);
-    
-    const gamesGrid = document.createElement('div');
-    gamesGrid.className = 'games-grid';
-    games.forEach(game => {
-        gamesGrid.appendChild(createGameCard(game));
-    });
-    section.appendChild(gamesGrid);
-    
-    return section;
 }
 
 function createGameCard(game) {
@@ -328,27 +389,94 @@ function createGameCard(game) {
         // Fetch initial play-by-play data
         loadPlayByPlay(game.id, playByPlay);
         
-        // Update play-by-play every 30 seconds for live games
-        setInterval(() => loadPlayByPlay(game.id, playByPlay), 30000);
+        // Store interval ID for cleanup
+        const intervalId = setInterval(() => loadPlayByPlay(game.id, playByPlay), 30000);
+        playByPlay.setAttribute('data-interval-id', intervalId);
     }
 
-    // Venue information
-    if (game.venue) {
-        const venue = document.createElement('div');
-        venue.className = 'venue';
-        venue.textContent = `${game.venue.name}, ${game.venue.city}, ${game.venue.state}`;
-        card.appendChild(venue);
-    }
+    // Venue and broadcast info
+    if (game.venue || (game.broadcasts && game.broadcasts.length > 0)) {
+        const info = document.createElement('div');
+        info.className = 'game-info';
+        
+        if (game.venue) {
+            const venue = document.createElement('div');
+            venue.className = 'venue';
+            venue.textContent = `${game.venue.name}, ${game.venue.city}, ${game.venue.state}`;
+            info.appendChild(venue);
+        }
 
-    // Broadcast information
-    if (game.broadcasts && game.broadcasts.length > 0) {
-        const broadcast = document.createElement('div');
-        broadcast.className = 'broadcast';
-        broadcast.textContent = `Watch on: ${game.broadcasts.join(', ')}`;
-        card.appendChild(broadcast);
+        if (game.broadcasts && game.broadcasts.length > 0) {
+            const broadcast = document.createElement('div');
+            broadcast.className = 'broadcast';
+            broadcast.textContent = `Watch on: ${game.broadcasts.join(', ')}`;
+            info.appendChild(broadcast);
+        }
+
+        card.appendChild(info);
     }
 
     return card;
+}
+
+async function loadPlayByPlay(gameId, container) {
+    try {
+        const response = await fetchWithRetry(API.playByPlay(gameId));
+        
+        if (!response || (!response.recentPlays && !response.scoring)) {
+            throw new Error('No play-by-play data available');
+        }
+        
+        const playsHTML = `
+            <div class="play-by-play-content">
+                ${response.recentPlays && response.recentPlays.length > 0 ? `
+                    <div class="recent-plays">
+                        <h4>Recent Plays</h4>
+                        <div class="plays-list">
+                            ${response.recentPlays.reverse().map(play => `
+                                <div class="play ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
+                                    <div class="play-time">${play.period}Q ${play.clock}</div>
+                                    <div class="play-text">${play.text}</div>
+                                    ${play.scoreValue ? `<div class="play-score">+${play.scoreValue}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                ${response.scoring && response.scoring.length > 0 ? `
+                    <div class="scoring-plays">
+                        <h4>Scoring Plays</h4>
+                        <div class="plays-list">
+                            ${response.scoring.reverse().map(play => `
+                                <div class="play scoring ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
+                                    <div class="play-time">${play.period}Q ${play.clock}</div>
+                                    <div class="play-text">${play.text}</div>
+                                    <div class="play-score">+${play.scoreValue}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+        
+        container.innerHTML = playsHTML || '<div class="no-plays">No play-by-play data available</div>';
+    } catch (error) {
+        console.error('Error loading play-by-play:', error);
+        container.innerHTML = `<div class="error">Unable to load play-by-play updates</div>`;
+        
+        // If the error persists, stop trying to update after 3 failures
+        const failCount = (container.getAttribute('data-fail-count') || 0) + 1;
+        container.setAttribute('data-fail-count', failCount);
+        
+        if (failCount >= 3) {
+            const intervalId = container.getAttribute('data-interval-id');
+            if (intervalId) {
+                clearInterval(parseInt(intervalId));
+                container.removeAttribute('data-interval-id');
+            }
+        }
+    }
 }
 
 // Fetch and display NCAA rankings
@@ -384,49 +512,6 @@ async function loadNCAARankings() {
     } catch (error) {
         console.error('Error loading rankings:', error);
         showError(elementId, 'Failed to load NCAA rankings');
-    }
-}
-
-// Function to load play-by-play data
-async function loadPlayByPlay(gameId, container) {
-    try {
-        const response = await fetch(API.playByPlay(gameId));
-        const data = await response.json();
-        
-        // Create play-by-play HTML
-        const playsHTML = `
-            <div class="play-by-play-content">
-                <div class="recent-plays">
-                    <h4>Recent Plays</h4>
-                    <div class="plays-list">
-                        ${data.recentPlays.reverse().map(play => `
-                            <div class="play ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
-                                <div class="play-time">${play.period}Q ${play.clock}</div>
-                                <div class="play-text">${play.text}</div>
-                                ${play.scoreValue ? `<div class="play-score">+${play.scoreValue}</div>` : ''}
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                <div class="scoring-plays">
-                    <h4>Scoring Plays</h4>
-                    <div class="plays-list">
-                        ${data.scoring.reverse().map(play => `
-                            <div class="play scoring ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
-                                <div class="play-time">${play.period}Q ${play.clock}</div>
-                                <div class="play-text">${play.text}</div>
-                                <div class="play-score">+${play.scoreValue}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        container.innerHTML = playsHTML;
-    } catch (error) {
-        console.error('Error loading play-by-play:', error);
-        container.innerHTML = '<div class="error">Unable to load play-by-play updates</div>';
     }
 }
 
