@@ -20,6 +20,12 @@ const ESPN_API = {
     NCAAW_GAME_PLAYBYPLAY: (gameId) => `https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event=${gameId}`
 };
 
+// Odds API configuration
+const ODDS_API = {
+    BASE_URL: 'https://api.the-odds-api.com/v4/sports/basketball_wncaab/odds',
+    API_KEY: process.env.ODDS_API_KEY
+};
+
 // Twitter API configuration
 const TWITTER_API = {
     BASE_URL: 'https://api.twitter.com/2',
@@ -35,6 +41,24 @@ async function fetchESPNData(url, params = {}) {
     } catch (error) {
         console.error('ESPN API Error:', error.message);
         throw error;
+    }
+}
+
+// Helper function to fetch odds data
+async function fetchOddsData() {
+    try {
+        const response = await axios.get(ODDS_API.BASE_URL, {
+            params: {
+                apiKey: ODDS_API.API_KEY,
+                regions: 'us',
+                markets: 'h2h',
+                oddsFormat: 'american'
+            }
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Odds API Error:', error.message);
+        return [];
     }
 }
 
@@ -82,10 +106,13 @@ app.get('/api/ncaaw/tournament', async (req, res) => {
         console.log('Fetching tournament data...');
         
         // Get current scoreboard data with specific parameters
-        const scoreboard = await fetchESPNData(ESPN_API.NCAAW_SCOREBOARD, {
-            limit: 100,
-            groups: 50,  // NCAA Women's Basketball
-        });
+        const [scoreboard, oddsData] = await Promise.all([
+            fetchESPNData(ESPN_API.NCAAW_SCOREBOARD, {
+                limit: 100,
+                groups: 50,  // NCAA Women's Basketball
+            }),
+            fetchOddsData()
+        ]);
         
         // Add detailed logging
         console.log('Full API Response:', {
@@ -131,6 +158,13 @@ app.get('/api/ncaaw/tournament', async (req, res) => {
                 const awayTeam = competition.competitors?.find(c => c.homeAway === 'away');
                 if (!homeTeam || !awayTeam) return null;
 
+                // Find matching odds for this game
+                const matchingOdds = oddsData.find(odds => {
+                    const homeMatch = odds.home_team.toLowerCase().includes(homeTeam.team.name.toLowerCase());
+                    const awayMatch = odds.away_team.toLowerCase().includes(awayTeam.team.name.toLowerCase());
+                    return homeMatch && awayMatch;
+                });
+
                 // Get tournament specific information
                 const notes = competition.notes || [];
                 const roundInfo = notes.find(n => n.type === "round");
@@ -161,7 +195,12 @@ app.get('/api/ncaaw/tournament', async (req, res) => {
                             seed: homeTeam.curatedRank?.seed,
                             winner: homeTeam.winner,
                             records: homeTeam.records,
-                            logo: homeTeam.team?.logo
+                            logo: homeTeam.team?.logo,
+                            odds: matchingOdds ? {
+                                moneyline: matchingOdds.bookmakers?.[0]?.markets?.[0]?.outcomes?.find(
+                                    o => o.name.toLowerCase().includes(homeTeam.team.name.toLowerCase())
+                                )?.price || null
+                            } : null
                         },
                         away: {
                             id: awayTeam.team?.id,
@@ -172,7 +211,12 @@ app.get('/api/ncaaw/tournament', async (req, res) => {
                             seed: awayTeam.curatedRank?.seed,
                             winner: awayTeam.winner,
                             records: awayTeam.records,
-                            logo: awayTeam.team?.logo
+                            logo: awayTeam.team?.logo,
+                            odds: matchingOdds ? {
+                                moneyline: matchingOdds.bookmakers?.[0]?.markets?.[0]?.outcomes?.find(
+                                    o => o.name.toLowerCase().includes(awayTeam.team.name.toLowerCase())
+                                )?.price || null
+                            } : null
                         }
                     },
                     venue: competition.venue ? {

@@ -5,6 +5,10 @@ services:
     buildCommand: npm install
     startCommand: node server.js
     envVars:
+      - key: NODE_ENV
+        value: production
       - key: TWITTER_BEARER_TOKEN
+        sync: false
+      - key: ODDS_API_KEY
         sync: false
     autoDeploy: true 

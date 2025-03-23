@@ -56,7 +56,7 @@ function formatDate(dateString) {
 // Format game status
 function formatGameStatus(status) {
     if (status.state === 'pre') {
-        return status.type;
+        return status.description || 'Scheduled';
     } else if (status.state === 'in') {
         return status.period > 4 
             ? `OT${status.period - 4} ${status.displayClock}`
@@ -330,69 +330,64 @@ function loadTournamentData() {
         });
 }
 
+// Helper function to format odds
+function formatOdds(odds) {
+    if (!odds || typeof odds.moneyline !== 'number') return 'N/A';
+    const ml = odds.moneyline;
+    return ml > 0 ? `+${ml}` : ml.toString();
+}
+
+// Function to create game card
 function createGameCard(game) {
     const card = document.createElement('div');
     card.className = 'game-card';
     if (game.status.state === 'in') {
         card.classList.add('live-game');
-        card.setAttribute('data-game-id', game.id);
     }
 
     const header = document.createElement('div');
     header.className = 'game-header';
     header.innerHTML = `
         <div class="game-status">${formatGameStatus(game.status)}</div>
-        <div class="game-date">${formatDate(game.date)}</div>
+        <div class="game-time">${formatDate(game.date)}</div>
     `;
-    card.appendChild(header);
 
     const teams = document.createElement('div');
     teams.className = 'teams';
-    
+
     // Home Team
     const homeTeam = document.createElement('div');
-    homeTeam.className = 'team home';
+    homeTeam.className = `team home ${game.teams.home.winner ? 'winner' : ''}`;
+    const homeOdds = game.teams.home.odds ? `<div class="team-odds">ML: ${formatOdds(game.teams.home.odds)}</div>` : '';
     homeTeam.innerHTML = `
         ${game.teams.home.logo ? `<img src="${game.teams.home.logo}" alt="${game.teams.home.name}" class="team-logo">` : ''}
         <div class="team-info">
             <div class="team-seed">${game.teams.home.seed || ''}</div>
             <div class="team-name">${game.teams.home.name}</div>
             <div class="team-score">${game.teams.home.score || ''}</div>
+            ${homeOdds}
         </div>
     `;
-    if (game.teams.home.winner) homeTeam.classList.add('winner');
-    
+
     // Away Team
     const awayTeam = document.createElement('div');
-    awayTeam.className = 'team away';
+    awayTeam.className = `team away ${game.teams.away.winner ? 'winner' : ''}`;
+    const awayOdds = game.teams.away.odds ? `<div class="team-odds">ML: ${formatOdds(game.teams.away.odds)}</div>` : '';
     awayTeam.innerHTML = `
         ${game.teams.away.logo ? `<img src="${game.teams.away.logo}" alt="${game.teams.away.name}" class="team-logo">` : ''}
         <div class="team-info">
             <div class="team-seed">${game.teams.away.seed || ''}</div>
             <div class="team-name">${game.teams.away.name}</div>
             <div class="team-score">${game.teams.away.score || ''}</div>
+            ${awayOdds}
         </div>
     `;
-    if (game.teams.away.winner) awayTeam.classList.add('winner');
-    
+
     teams.appendChild(awayTeam);
     teams.appendChild(homeTeam);
+    
+    card.appendChild(header);
     card.appendChild(teams);
-
-    // Add play-by-play section for live games
-    if (game.status.state === 'in') {
-        const playByPlay = document.createElement('div');
-        playByPlay.className = 'play-by-play';
-        playByPlay.innerHTML = '<div class="loading"></div>';
-        card.appendChild(playByPlay);
-        
-        // Fetch initial play-by-play data
-        loadPlayByPlay(game.id, playByPlay);
-        
-        // Store interval ID for cleanup
-        const intervalId = setInterval(() => loadPlayByPlay(game.id, playByPlay), 30000);
-        playByPlay.setAttribute('data-interval-id', intervalId);
-    }
 
     // Venue and broadcast info
     if (game.venue || (game.broadcasts && game.broadcasts.length > 0)) {
@@ -414,6 +409,21 @@ function createGameCard(game) {
         }
 
         card.appendChild(info);
+    }
+
+    // Add play-by-play section for live games
+    if (game.status.state === 'in') {
+        const playByPlay = document.createElement('div');
+        playByPlay.className = 'play-by-play';
+        playByPlay.innerHTML = '<div class="loading"></div>';
+        card.appendChild(playByPlay);
+
+        // Fetch initial play-by-play data
+        loadPlayByPlay(game.id, playByPlay);
+        
+        // Store interval ID for cleanup
+        const intervalId = setInterval(() => loadPlayByPlay(game.id, playByPlay), 30000);
+        playByPlay.setAttribute('data-interval-id', intervalId);
     }
 
     return card;

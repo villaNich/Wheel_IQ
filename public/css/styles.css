@@ -168,6 +168,26 @@ section h2 {
     text-align: right;
 }
 
+.team-odds {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 4px;
+    padding: 2px 6px;
+    background-color: #f5f5f5;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.live-game .team-odds {
+    color: #e63946;
+    font-weight: bold;
+    background-color: #f1faee;
+}
+
+.team-odds:empty {
+    display: none;
+}
+
 /* Play-by-play section */
 .play-by-play {
     margin-top: 1.5rem;
