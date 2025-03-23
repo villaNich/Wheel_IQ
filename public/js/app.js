@@ -330,13 +330,6 @@ function loadTournamentData() {
         });
 }
 
-// Helper function to format odds
-function formatOdds(odds) {
-    if (!odds || typeof odds.moneyline !== 'number') return 'N/A';
-    const ml = odds.moneyline;
-    return ml > 0 ? `+${ml}` : ml.toString();
-}
-
 // Function to create game card
 function createGameCard(game) {
     const card = document.createElement('div');
@@ -358,28 +351,24 @@ function createGameCard(game) {
     // Home Team
     const homeTeam = document.createElement('div');
     homeTeam.className = `team home ${game.teams.home.winner ? 'winner' : ''}`;
-    const homeOdds = game.teams.home.odds ? `<div class="team-odds">ML: ${formatOdds(game.teams.home.odds)}</div>` : '';
     homeTeam.innerHTML = `
         ${game.teams.home.logo ? `<img src="${game.teams.home.logo}" alt="${game.teams.home.name}" class="team-logo">` : ''}
         <div class="team-info">
             <div class="team-seed">${game.teams.home.seed || ''}</div>
             <div class="team-name">${game.teams.home.name}</div>
             <div class="team-score">${game.teams.home.score || ''}</div>
-            ${homeOdds}
         </div>
     `;
 
     // Away Team
     const awayTeam = document.createElement('div');
     awayTeam.className = `team away ${game.teams.away.winner ? 'winner' : ''}`;
-    const awayOdds = game.teams.away.odds ? `<div class="team-odds">ML: ${formatOdds(game.teams.away.odds)}</div>` : '';
     awayTeam.innerHTML = `
         ${game.teams.away.logo ? `<img src="${game.teams.away.logo}" alt="${game.teams.away.name}" class="team-logo">` : ''}
         <div class="team-info">
             <div class="team-seed">${game.teams.away.seed || ''}</div>
             <div class="team-name">${game.teams.away.name}</div>
             <div class="team-score">${game.teams.away.score || ''}</div>
-            ${awayOdds}
         </div>
     `;
 
