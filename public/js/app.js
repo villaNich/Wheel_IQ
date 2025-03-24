@@ -5,6 +5,12 @@ const API = {
     playByPlay: (gameId) => `/api/ncaaw/game/${gameId}/playbyplay`
 };
 
+// Add mobile detection function at the top of the file
+function isMobileDevice() {
+    return (window.innerWidth <= 768) || 
+           (navigator.maxTouchPoints > 0 && navigator.msMaxTouchPoints > 0);
+}
+
 // Helper function to show loading state
 function showLoading(elementId) {
     const element = document.getElementById(elementId);
@@ -217,6 +223,22 @@ function getCompletedGames() {
 function loadTournamentData() {
     fetchWithRetry(API.tournament)
         .then(data => {
+            // Filter for March Madness games only
+            const filterMarchMadness = (games) => {
+                return games.filter(game => {
+                    // Check if the game has a bracket link indicating it's part of the NCAA tournament
+                    return game.links && game.links.some(link => 
+                        link.rel.includes('bracket') && 
+                        link.href.includes('ncaa-tournament')
+                    );
+                });
+            };
+
+            // Filter games for each section
+            data.games.live = filterMarchMadness(data.games.live);
+            data.games.upcoming = filterMarchMadness(data.games.upcoming);
+            data.games.completed = filterMarchMadness(data.games.completed);
+            
             // Save completed games to local storage
             data.games.completed.forEach(game => saveCompletedGame(game));
             
@@ -330,13 +352,19 @@ function loadTournamentData() {
         });
 }
 
-// Function to create game card
+// Modify the createGameCard function
 function createGameCard(game) {
+    const isMobile = isMobileDevice();
     const card = document.createElement('div');
-    card.className = 'game-card';
-    if (game.status.state === 'in') {
-        card.classList.add('live-game');
-    }
+    card.className = `game-card ${game.status.state === 'in' ? 'live-game' : ''}`;
+    
+    // Add click handler to navigate to game details
+    card.addEventListener('click', () => {
+        window.location.href = `/game.html?id=${game.id}`;
+    });
+    
+    // Add cursor pointer to indicate clickable
+    card.style.cursor = 'pointer';
 
     const header = document.createElement('div');
     header.className = 'game-header';
@@ -378,8 +406,8 @@ function createGameCard(game) {
     card.appendChild(header);
     card.appendChild(teams);
 
-    // Venue and broadcast info
-    if (game.venue || (game.broadcasts && game.broadcasts.length > 0)) {
+    // Only show venue and broadcast info on desktop
+    if (!isMobile && (game.venue || (game.broadcasts && game.broadcasts.length > 0))) {
         const info = document.createElement('div');
         info.className = 'game-info';
         
@@ -400,66 +428,101 @@ function createGameCard(game) {
         card.appendChild(info);
     }
 
-    // Add play-by-play section for live games
+    // Add play-by-play section for live games with mobile optimization
     if (game.status.state === 'in') {
         const playByPlay = document.createElement('div');
         playByPlay.className = 'play-by-play';
         playByPlay.innerHTML = '<div class="loading"></div>';
         card.appendChild(playByPlay);
 
-        // Fetch initial play-by-play data
-        loadPlayByPlay(game.id, playByPlay);
+        // Fetch initial play-by-play data with mobile optimization
+        loadPlayByPlay(game.id, playByPlay, isMobile);
         
         // Store interval ID for cleanup
-        const intervalId = setInterval(() => loadPlayByPlay(game.id, playByPlay), 30000);
+        const intervalId = setInterval(() => loadPlayByPlay(game.id, playByPlay, isMobile), 30000);
         playByPlay.setAttribute('data-interval-id', intervalId);
     }
 
     return card;
 }
 
-async function loadPlayByPlay(gameId, container) {
+// Modify loadPlayByPlay function to handle mobile
+async function loadPlayByPlay(gameId, container, isMobile = false) {
     try {
         const response = await fetchWithRetry(API.playByPlay(gameId));
         
         if (!response || (!response.recentPlays && !response.scoring)) {
             throw new Error('No play-by-play data available');
         }
-        
-        const playsHTML = `
-            <div class="play-by-play-content">
-                ${response.recentPlays && response.recentPlays.length > 0 ? `
-                    <div class="recent-plays">
-                        <h4>Recent Plays</h4>
-                        <div class="plays-list">
-                            ${response.recentPlays.reverse().map(play => `
-                                <div class="play ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
-                                    <div class="play-time">${play.period}Q ${play.clock}</div>
-                                    <div class="play-text">${play.text}</div>
-                                    ${play.scoreValue ? `<div class="play-score">+${play.scoreValue}</div>` : ''}
-                                </div>
-                            `).join('')}
+
+        if (isMobile) {
+            // Show simplified version on mobile
+            const recentPlays = response.recentPlays?.slice(0, 5) || [];
+            const scoringPlays = response.scoring?.slice(0, 3) || [];
+            
+            container.innerHTML = `
+                <div class="play-by-play-content mobile">
+                    ${recentPlays.length > 0 ? `
+                        <div class="recent-plays">
+                            <div class="plays-list">
+                                ${recentPlays.map(play => `
+                                    <div class="play ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
+                                        <div class="play-text">${play.text}</div>
+                                        ${play.scoreValue ? `<div class="play-score">+${play.scoreValue}</div>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
-                    </div>
-                ` : ''}
-                ${response.scoring && response.scoring.length > 0 ? `
-                    <div class="scoring-plays">
-                        <h4>Scoring Plays</h4>
-                        <div class="plays-list">
-                            ${response.scoring.reverse().map(play => `
-                                <div class="play scoring ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
-                                    <div class="play-time">${play.period}Q ${play.clock}</div>
-                                    <div class="play-text">${play.text}</div>
-                                    <div class="play-score">+${play.scoreValue}</div>
-                                </div>
-                            `).join('')}
+                    ` : ''}
+                    ${scoringPlays.length > 0 ? `
+                        <div class="scoring-plays">
+                            <div class="plays-list">
+                                ${scoringPlays.map(play => `
+                                    <div class="play scoring ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
+                                        <div class="play-text">${play.text}</div>
+                                        <div class="play-score">+${play.scoreValue}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
-                    </div>
-                ` : ''}
-            </div>
-        `;
-        
-        container.innerHTML = playsHTML || '<div class="no-plays">No play-by-play data available</div>';
+                    ` : ''}
+                </div>
+            `;
+        } else {
+            // Show full version on desktop
+            container.innerHTML = `
+                <div class="play-by-play-content">
+                    ${response.recentPlays && response.recentPlays.length > 0 ? `
+                        <div class="recent-plays">
+                            <h4>Recent Plays</h4>
+                            <div class="plays-list">
+                                ${response.recentPlays.reverse().map(play => `
+                                    <div class="play ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
+                                        <div class="play-time">${play.period}Q ${play.clock}</div>
+                                        <div class="play-text">${play.text}</div>
+                                        ${play.scoreValue ? `<div class="play-score">+${play.scoreValue}</div>` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${response.scoring && response.scoring.length > 0 ? `
+                        <div class="scoring-plays">
+                            <h4>Scoring Plays</h4>
+                            <div class="plays-list">
+                                ${response.scoring.reverse().map(play => `
+                                    <div class="play scoring ${play.team ? `team-${play.team.toLowerCase()}` : ''}">
+                                        <div class="play-time">${play.period}Q ${play.clock}</div>
+                                        <div class="play-text">${play.text}</div>
+                                        <div class="play-score">+${play.scoreValue}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
     } catch (error) {
         console.error('Error loading play-by-play:', error);
         container.innerHTML = `<div class="error">Unable to load play-by-play updates</div>`;
@@ -513,6 +576,26 @@ async function loadNCAARankings() {
         showError(elementId, 'Failed to load NCAA rankings');
     }
 }
+
+// Add window resize handler
+window.addEventListener('resize', () => {
+    const isMobile = isMobileDevice();
+    // Update UI elements based on screen size
+    const navLinks = document.querySelector('.nav-links');
+    if (navLinks) {
+        navLinks.style.display = isMobile ? 'none' : 'flex';
+    }
+    
+    // Refresh game cards to update their layout
+    const gameCards = document.querySelectorAll('.game-card');
+    gameCards.forEach(card => {
+        const game = card.getAttribute('data-game');
+        if (game) {
+            const newCard = createGameCard(JSON.parse(game));
+            card.parentNode.replaceChild(newCard, card);
+        }
+    });
+});
 
 // Initialize when the DOM is loaded
 document.addEventListener('DOMContentLoaded', initApp); 
