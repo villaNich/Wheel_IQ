@@ -940,4 +940,78 @@ section h2 {
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--primary-color);
+}
+
+/* Live Play-by-Play Styles */
+.live-play-by-play {
+    margin-top: 1.5rem;
+    background: var(--card-background);
+    border-radius: 8px;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.live-play-by-play h3 {
+    margin: 0 0 1rem;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.plays-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+}
+
+.play {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9rem;
+}
+
+.play:last-child {
+    border-bottom: none;
+}
+
+.play-time {
+    min-width: 60px;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.play-text {
+    flex: 1;
+}
+
+.play-score {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+/* Mobile adjustments for play-by-play */
+@media (max-width: 768px) {
+    .live-play-by-play {
+        margin-top: 1rem;
+        padding: 0.75rem;
+    }
+
+    .plays-list {
+        max-height: 250px;
+    }
+
+    .play {
+        padding: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .play-time {
+        min-width: 50px;
+        font-size: 0.75rem;
+    }
 } 

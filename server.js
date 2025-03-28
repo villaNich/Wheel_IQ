@@ -351,17 +351,14 @@ app.get('/api/ncaaw/rankings', async (req, res) => {
 app.get('/api/ncaaw/game/:gameId/playbyplay', async (req, res) => {
     try {
         const { gameId } = req.params;
-        console.log(`Fetching play-by-play data for game ${gameId}`);
+        console.log(`[Play-by-Play] Fetching data for game ${gameId}`);
+        console.log(`[Play-by-Play] Using URL: ${ESPN_API.NCAAW_GAME_PLAYBYPLAY(gameId)}`);
         
         const data = await fetchESPNData(ESPN_API.NCAAW_GAME_PLAYBYPLAY(gameId));
-        console.log('Play-by-play API response:', {
-            hasPlays: Boolean(data.plays),
-            playsCount: data.plays?.length || 0,
-            hasDrives: Boolean(data.drives),
-            drivesCount: data.drives?.length || 0
-        });
+        console.log('[Play-by-Play] Raw API Response:', JSON.stringify(data, null, 2));
         
         if (!data.plays) {
+            console.log('[Play-by-Play] No plays data found in API response');
             return res.status(404).json({ 
                 error: 'No play-by-play data available',
                 gameId,
@@ -394,9 +391,15 @@ app.get('/api/ncaaw/game/:gameId/playbyplay', async (req, res) => {
             })) || []
         };
         
+        console.log('[Play-by-Play] Processed data:', {
+            recentPlaysCount: gameInfo.recentPlays.length,
+            scoringPlaysCount: gameInfo.scoring.length,
+            samplePlay: gameInfo.recentPlays[0]
+        });
+        
         res.json(gameInfo);
     } catch (error) {
-        console.error('Play-by-play Error:', {
+        console.error('[Play-by-Play] Error:', {
             message: error.message,
             gameId: req.params.gameId,
             stack: error.stack,
