@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NWSL - National Women's Soccer League</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav>
+        <a href="/" class="nav-link">← Back to Sports Hub</a>
+    </nav>
+
+    <main>
+        <header>
+            <h1>NWSL</h1>
+            <p>National Women's Soccer League</p>
+        </header>
+
+        <section id="live-games">
+            <h2>Live Games</h2>
+            <div class="games-grid"></div>
+            <p class="no-games-message" style="display: none;">No live games at the moment.</p>
+        </section>
+
+        <section id="upcoming-games">
+            <h2>Upcoming Games</h2>
+            <div class="games-grid"></div>
+            <p class="no-games-message" style="display: none;">No upcoming games scheduled.</p>
+        </section>
+
+        <section id="completed-games">
+            <h2>Completed Games</h2>
+            <div class="games-grid"></div>
+            <p class="no-games-message" style="display: none;">No completed games yet.</p>
+        </section>
+
+        <section id="standings">
+            <h2>League Standings</h2>
+            <div class="standings">
+                <div class="standings-header">
+                    <div class="team-rank">#</div>
+                    <div class="team-info">Team</div>
+                    <div class="team-stats">GP</div>
+                    <div class="team-stats">W</div>
+                    <div class="team-stats">D</div>
+                    <div class="team-stats">L</div>
+                    <div class="team-stats">GF</div>
+                    <div class="team-stats">GA</div>
+                    <div class="team-stats">GD</div>
+                    <div class="team-stats">Pts</div>
+                </div>
+                <div class="standings-rows"></div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Helper function to format date
+        function formatDate(dateString) {
+            const options = { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                timeZoneName: 'short'
+            };
+            return new Date(dateString).toLocaleString('en-US', options);
+        }
+
+        // Helper function to create game card
+        function createGameCard(game) {
+            return `
+                <div class="game-card" data-game-id="${game.id}">
+                    <div class="game-header">
+                        <span class="game-date">${formatDate(game.date)}</span>
+                        <span class="game-status">${game.status.type}</span>
+                    </div>
+                    <div class="teams">
+                        <div class="team home ${game.teams.home.winner ? 'winner' : ''}">
+                            <img src="${game.teams.home.logo}" alt="${game.teams.home.name} logo" class="team-logo">
+                            <span class="team-name">${game.teams.home.name}</span>
+                            <span class="team-score">${game.teams.home.score || '-'}</span>
+                        </div>
+                        <div class="team away ${game.teams.away.winner ? 'winner' : ''}">
+                            <img src="${game.teams.away.logo}" alt="${game.teams.away.name} logo" class="team-logo">
+                            <span class="team-name">${game.teams.away.name}</span>
+                            <span class="team-score">${game.teams.away.score || '-'}</span>
+                        </div>
+                    </div>
+                    <div class="game-footer">
+                        <span class="venue">${game.venue.name}</span>
+                        <span class="broadcasts">${game.broadcasts.join(', ')}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Helper function to create standings row
+        function createStandingsRow(team) {
+            return `
+                <div class="standings-row">
+                    <div class="team-rank">${team.stats.find(s => s.name === 'rank').value}</div>
+                    <div class="team-info">
+                        <img src="${team.team.logos[0].href}" alt="${team.team.name} logo" class="team-logo">
+                        <span class="team-name">${team.team.name}</span>
+                    </div>
+                    <div class="team-stats">${team.stats.find(s => s.name === 'gamesPlayed').value}</div>
+                    <div class="team-stats">${team.stats.find(s => s.name === 'wins').value}</div>
+                    <div class="team-stats">${team.stats.find(s => s.name === 'ties').value}</div>
+                    <div class="team-stats">${team.stats.find(s => s.name === 'losses').value}</div>
+                    <div class="team-stats">${team.stats.find(s => s.name === 'pointsFor').value}</div>
+                    <div class="team-stats">${team.stats.find(s => s.name === 'pointsAgainst').value}</div>
+                    <div class="team-stats">${team.stats.find(s => s.name === 'pointDifferential').value}</div>
+                    <div class="team-stats">${team.stats.find(s => s.name === 'points').value}</div>
+                </div>
+            `;
+        }
+
+        // Function to update games sections
+        async function updateGames() {
+            try {
+                const response = await fetch('/api/nwsl/tournament');
+                const data = await response.json();
+
+                // Update live games
+                const liveGamesGrid = document.querySelector('#live-games .games-grid');
+                const liveGamesMessage = document.querySelector('#live-games .no-games-message');
+                if (data.games.live.length > 0) {
+                    liveGamesGrid.innerHTML = data.games.live.map(createGameCard).join('');
+                    liveGamesGrid.style.display = 'grid';
+                    liveGamesMessage.style.display = 'none';
+                } else {
+                    liveGamesGrid.style.display = 'none';
+                    liveGamesMessage.style.display = 'block';
+                }
+
+                // Update upcoming games
+                const upcomingGamesGrid = document.querySelector('#upcoming-games .games-grid');
+                const upcomingGamesMessage = document.querySelector('#upcoming-games .no-games-message');
+                if (data.games.upcoming.length > 0) {
+                    upcomingGamesGrid.innerHTML = data.games.upcoming.map(createGameCard).join('');
+                    upcomingGamesGrid.style.display = 'grid';
+                    upcomingGamesMessage.style.display = 'none';
+                } else {
+                    upcomingGamesGrid.style.display = 'none';
+                    upcomingGamesMessage.style.display = 'block';
+                }
+
+                // Update completed games
+                const completedGamesGrid = document.querySelector('#completed-games .games-grid');
+                const completedGamesMessage = document.querySelector('#completed-games .no-games-message');
+                if (data.games.completed.length > 0) {
+                    completedGamesGrid.innerHTML = data.games.completed.map(createGameCard).join('');
+                    completedGamesGrid.style.display = 'grid';
+                    completedGamesMessage.style.display = 'none';
+                } else {
+                    completedGamesGrid.style.display = 'none';
+                    completedGamesMessage.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error updating games:', error);
+            }
+        }
+
+        // Function to update standings
+        async function updateStandings() {
+            try {
+                const response = await fetch('/api/nwsl/standings');
+                const data = await response.json();
+                
+                const standingsRows = document.querySelector('.standings-rows');
+                standingsRows.innerHTML = data.standings[0].entries
+                    .map(createStandingsRow)
+                    .join('');
+            } catch (error) {
+                console.error('Error updating standings:', error);
+            }
+        }
+
+        // Initial load
+        updateGames();
+        updateStandings();
+
+        // Refresh data every minute
+        setInterval(updateGames, 60000);
+        setInterval(updateStandings, 60000);
+    </script>
+</body>
+</html> 

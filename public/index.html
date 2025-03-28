@@ -3,108 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Women's March Madness Hub</title>
+    <title>Wheel IQ - Sports Hub</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-    <nav class="navbar">
-        <div class="container">
-            <div class="nav-brand">March Madness Hub</div>
-            <div class="nav-links">
-                <a href="#" class="active">Home</a>
-                <a href="#live">Live Games</a>
-                <a href="#upcoming">Upcoming</a>
-                <a href="#completed">Completed</a>
-                <a href="#rankings">Rankings</a>
-                <a href="#news">News</a>
+    <header>
+        <nav class="navbar">
+            <div class="container">
+                <div class="nav-brand">
+                    <a href="/">Wheel IQ</a>
+                </div>
             </div>
-        </div>
-    </nav>
-
-    <header class="hero">
-        <div class="container">
-            <h1>Women's March Madness Central</h1>
-            <p>Your complete coverage of NCAA Women's Basketball Tournament</p>
-        </div>
+        </nav>
     </header>
 
-    <main class="container">
-        <section id="live" class="section">
-            <h2>Live Games</h2>
-            <div id="live-games" class="games">
-                <!-- Live games will be dynamically populated -->
-            </div>
-        </section>
-
-        <section id="upcoming" class="section">
-            <h2>Upcoming Games</h2>
-            <div id="upcoming-games" class="games">
-                <!-- Upcoming games will be dynamically populated -->
-            </div>
-        </section>
-
-        <section id="completed" class="section">
-            <h2>Completed Games</h2>
-            <div id="completed-games" class="games">
-                <!-- Completed games will be dynamically populated -->
-            </div>
-        </section>
-
-        <section id="tournament-bracket" class="section">
-            <h2>Tournament Bracket</h2>
-            <div class="bracket">
-                <!-- Bracket will be dynamically populated -->
-            </div>
-        </section>
-
-        <section id="rankings" class="section">
-            <h2>NCAA Rankings</h2>
-            <div id="ncaa-rankings" class="rankings">
-                <!-- Rankings will be dynamically populated -->
-            </div>
-        </section>
-
-        <section id="news" class="section">
-            <h2>Tournament News</h2>
-            <div id="march-madness-news" class="news-grid">
-                <!-- News articles will be dynamically populated -->
+    <main>
+        <section class="sports-hub">
+            <h1>Welcome to Wheel IQ</h1>
+            <p class="hub-description">Select a sport to view live scores, upcoming games, and tournament brackets.</p>
+            
+            <div class="sports-grid">
+                <a href="/ncaaw.html" class="sport-card">
+                    <div class="sport-icon">🏀</div>
+                    <h2>Women's March Madness</h2>
+                    <p>NCAA Women's Basketball Tournament</p>
+                </a>
+                <a href="/pwhl.html" class="sport-card">
+                    <div class="sport-icon">🏒</div>
+                    <h2>PWHL</h2>
+                    <p>Professional Women's Hockey League</p>
+                </a>
+                <a href="/nwsl.html" class="sport-card">
+                    <div class="sport-icon">⚽</div>
+                    <h2>NWSL</h2>
+                    <p>National Women's Soccer League</p>
+                </a>
             </div>
         </section>
     </main>
 
-    <footer class="footer">
+    <footer>
         <div class="container">
             <div class="footer-content">
-                <div class="footer-section">
-                    <h4>About Us</h4>
-                    <p>Your premier destination for NCAA Women's Basketball Tournament coverage</p>
-                </div>
-                <div class="footer-section">
-                    <h4>Quick Links</h4>
-                    <ul>
-                        <li><a href="#live">Live Games</a></li>
-                        <li><a href="#upcoming">Upcoming Games</a></li>
-                        <li><a href="#completed">Completed Games</a></li>
-                        <li><a href="#rankings">Rankings</a></li>
-                        <li><a href="#news">News</a></li>
-                    </ul>
-                </div>
-                <div class="footer-section">
-                    <h4>Follow Us</h4>
-                    <div class="social-links">
-                        <a href="#" class="social-link">Twitter</a>
-                        <a href="#" class="social-link">Instagram</a>
-                        <a href="#" class="social-link">Facebook</a>
-                    </div>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2024 March Madness Hub. All rights reserved.</p>
+                <p>&copy; 2024 Wheel IQ. All rights reserved.</p>
             </div>
         </div>
     </footer>
-
-    <script src="js/app.js"></script>
 </body>
 </html> 

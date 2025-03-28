@@ -20,6 +20,13 @@ const ESPN_API = {
     NCAAW_GAME_PLAYBYPLAY: (gameId) => `https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event=${gameId}`
 };
 
+// ESPN API endpoints for PWHL
+const PWHL_API = {
+    SCOREBOARD: 'https://site.api.espn.com/apis/site/v2/sports/hockey/womens-pro/scoreboard',
+    RANKINGS: 'https://site.api.espn.com/apis/site/v2/sports/hockey/womens-pro/standings',
+    GAME_PLAYBYPLAY: (gameId) => `https://site.api.espn.com/apis/site/v2/sports/hockey/womens-pro/summary?event=${gameId}`
+};
+
 // Odds API configuration
 const ODDS_API = {
     BASE_URL: 'https://api.the-odds-api.com/v4/sports/basketball_wncaab/odds',
@@ -30,6 +37,13 @@ const ODDS_API = {
 const TWITTER_API = {
     BASE_URL: 'https://api.twitter.com/2',
     BEARER_TOKEN: process.env.TWITTER_BEARER_TOKEN
+};
+
+// ESPN API endpoints for NWSL
+const NWSL_API = {
+    SCOREBOARD: 'https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/scoreboard',
+    STANDINGS: 'https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/standings',
+    GAME_SUMMARY: (gameId) => `https://site.api.espn.com/apis/site/v2/sports/soccer/usa.nwsl/summary?event=${gameId}`
 };
 
 // Helper function to fetch data from ESPN API
@@ -425,6 +439,150 @@ app.get('/api/tweets/marchmadness', async (req, res) => {
     } catch (error) {
         console.error('Twitter API Error:', error);
         res.status(500).json({ error: 'Failed to fetch tweets' });
+    }
+});
+
+// PWHL Tournament Endpoint
+app.get('/api/pwhl/tournament', async (req, res) => {
+    try {
+        const response = await fetch(PWHL_API.SCOREBOARD);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching PWHL tournament data:', error);
+        res.status(500).json({ error: 'Failed to fetch PWHL data' });
+    }
+});
+
+// PWHL Rankings Endpoint
+app.get('/api/pwhl/rankings', async (req, res) => {
+    try {
+        const response = await fetch(PWHL_API.RANKINGS);
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching PWHL rankings:', error);
+        res.status(500).json({ error: 'Failed to fetch PWHL rankings' });
+    }
+});
+
+// PWHL Game Play-by-Play Endpoint
+app.get('/api/pwhl/game/:gameId/playbyplay', async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const response = await fetch(PWHL_API.GAME_PLAYBYPLAY(gameId));
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching PWHL play-by-play data:', error);
+        res.status(500).json({ error: 'Failed to fetch PWHL play-by-play data' });
+    }
+});
+
+// NWSL Tournament Endpoint
+app.get('/api/nwsl/tournament', async (req, res) => {
+    try {
+        const response = await fetchESPNData(NWSL_API.SCOREBOARD);
+        
+        // Process games data
+        const games = (response.events || []).map(event => {
+            try {
+                const competition = event.competitions?.[0];
+                if (!competition) return null;
+
+                const homeTeam = competition.competitors?.find(c => c.homeAway === 'home');
+                const awayTeam = competition.competitors?.find(c => c.homeAway === 'away');
+                if (!homeTeam || !awayTeam) return null;
+
+                return {
+                    id: event.id,
+                    date: event.date,
+                    name: event.name,
+                    shortName: event.shortName,
+                    status: {
+                        clock: event.status?.clock,
+                        displayClock: event.status?.displayClock,
+                        period: event.status?.period,
+                        type: event.status?.type?.name,
+                        state: event.status?.type?.state,
+                        completed: event.status?.type?.completed,
+                        description: event.status?.type?.description
+                    },
+                    teams: {
+                        home: {
+                            id: homeTeam.team?.id,
+                            name: homeTeam.team?.name,
+                            abbreviation: homeTeam.team?.abbreviation,
+                            displayName: homeTeam.team?.displayName,
+                            score: homeTeam.score,
+                            winner: homeTeam.winner,
+                            records: homeTeam.records,
+                            logo: homeTeam.team?.logo
+                        },
+                        away: {
+                            id: awayTeam.team?.id,
+                            name: awayTeam.team?.name,
+                            abbreviation: awayTeam.team?.abbreviation,
+                            displayName: awayTeam.team?.displayName,
+                            score: awayTeam.score,
+                            winner: awayTeam.winner,
+                            records: awayTeam.records,
+                            logo: awayTeam.team?.logo
+                        }
+                    },
+                    venue: {
+                        name: competition.venue?.fullName,
+                        city: competition.venue?.address?.city,
+                        state: competition.venue?.address?.state,
+                        country: competition.venue?.address?.country
+                    },
+                    broadcasts: competition.broadcasts?.[0]?.names || [],
+                    links: event.links || []
+                };
+            } catch (error) {
+                console.error('Error processing game:', error);
+                return null;
+            }
+        }).filter(Boolean);
+
+        // Categorize games
+        const now = new Date();
+        const categorizedGames = {
+            live: games.filter(game => game.status.state === 'in'),
+            upcoming: games.filter(game => new Date(game.date) > now),
+            completed: games.filter(game => game.status.state === 'post')
+        };
+
+        res.json({
+            games: categorizedGames,
+            lastUpdated: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error fetching NWSL tournament data:', error);
+        res.status(500).json({ error: 'Failed to fetch NWSL data' });
+    }
+});
+
+// NWSL Standings Endpoint
+app.get('/api/nwsl/standings', async (req, res) => {
+    try {
+        const response = await fetchESPNData(NWSL_API.STANDINGS);
+        res.json(response);
+    } catch (error) {
+        console.error('Error fetching NWSL standings:', error);
+        res.status(500).json({ error: 'Failed to fetch NWSL standings' });
+    }
+});
+
+// NWSL Game Summary Endpoint
+app.get('/api/nwsl/game/:gameId/summary', async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const response = await fetchESPNData(NWSL_API.GAME_SUMMARY(gameId));
+        res.json(response);
+    } catch (error) {
+        console.error('Error fetching NWSL game summary:', error);
+        res.status(500).json({ error: 'Failed to fetch NWSL game summary' });
     }
 });
 

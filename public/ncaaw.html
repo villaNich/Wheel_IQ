@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NCAA Women's March Madness - Wheel IQ</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <nav>
+        <a href="/" class="nav-link">← Back to Sports Hub</a>
+    </nav>
+
+    <main>
+        <header>
+            <h1>NCAA Women's March Madness</h1>
+            <p>Follow the tournament bracket, live games, and standings</p>
+        </header>
+
+        <!-- Live Games Section -->
+        <section id="live-games">
+            <h2>Live Games</h2>
+            <div class="games-grid" id="live-games-grid">
+                <!-- Live games will be populated here -->
+            </div>
+            <div class="no-games-message" id="no-live-games" style="display: none;">
+                No live games at the moment
+            </div>
+        </section>
+
+        <!-- Upcoming Games Section -->
+        <section id="upcoming-games">
+            <h2>Upcoming Games</h2>
+            <div class="games-grid" id="upcoming-games-grid">
+                <!-- Upcoming games will be populated here -->
+            </div>
+            <div class="no-games-message" id="no-upcoming-games" style="display: none;">
+                No upcoming games scheduled
+            </div>
+        </section>
+
+        <!-- Completed Games Section -->
+        <section id="completed-games">
+            <h2>Completed Games</h2>
+            <div class="games-grid" id="completed-games-grid">
+                <!-- Completed games will be populated here -->
+            </div>
+            <div class="no-games-message" id="no-completed-games" style="display: none;">
+                No completed games to display
+            </div>
+        </section>
+
+        <!-- Tournament Bracket Section -->
+        <section id="tournament-bracket">
+            <h2>Tournament Bracket</h2>
+            <div class="bracket-container" id="bracket-container">
+                <!-- Tournament rounds will be populated here -->
+            </div>
+        </section>
+
+        <!-- Rankings Section -->
+        <section id="rankings">
+            <h2>AP Top 25 Rankings</h2>
+            <div class="rankings-list" id="rankings-list">
+                <!-- Rankings will be populated here -->
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Helper function to format dates
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: 'numeric',
+                timeZoneName: 'short'
+            });
+        }
+
+        // Function to create a game card
+        function createGameCard(game) {
+            const homeTeam = game.teams.home;
+            const awayTeam = game.teams.away;
+            const isLive = game.status.state === 'in';
+            const isCompleted = game.status.state === 'post';
+
+            return `
+                <div class="game-card ${isLive ? 'live' : ''} ${isCompleted ? 'completed' : ''}">
+                    <div class="game-header">
+                        <span class="game-status">${game.status.type}</span>
+                        <span class="game-time">${formatDate(game.date)}</span>
+                    </div>
+                    <div class="teams">
+                        <div class="team ${homeTeam.winner ? 'winner' : ''}">
+                            <img src="${homeTeam.logo}" alt="${homeTeam.name}" class="team-logo">
+                            <div class="team-info">
+                                <span class="team-seed">${homeTeam.seed || ''}</span>
+                                <span class="team-name">${homeTeam.name}</span>
+                                <span class="team-score">${homeTeam.score || '0'}</span>
+                            </div>
+                        </div>
+                        <div class="team ${awayTeam.winner ? 'winner' : ''}">
+                            <img src="${awayTeam.logo}" alt="${awayTeam.name}" class="team-logo">
+                            <div class="team-info">
+                                <span class="team-seed">${awayTeam.seed || ''}</span>
+                                <span class="team-name">${awayTeam.name}</span>
+                                <span class="team-score">${awayTeam.score || '0'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${game.venue ? `
+                        <div class="game-footer">
+                            <span class="venue">${game.venue.name}</span>
+                            ${game.broadcasts.length > 0 ? `
+                                <span class="broadcast">${game.broadcasts.join(', ')}</span>
+                            ` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        // Function to create a tournament round
+        function createTournamentRound(round) {
+            return `
+                <div class="tournament-round">
+                    <h3>${round.name}</h3>
+                    <div class="round-games">
+                        ${round.games.map(game => createGameCard(game)).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Function to create a rankings item
+        function createRankingsItem(ranking) {
+            return `
+                <div class="ranking-item">
+                    <span class="rank">${ranking.rank}</span>
+                    <img src="${ranking.team.logo}" alt="${ranking.team.name}" class="team-logo">
+                    <div class="team-info">
+                        <span class="team-name">${ranking.team.name}</span>
+                        <span class="team-record">${ranking.record}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Function to update games sections
+        async function updateGames() {
+            try {
+                const response = await fetch('/api/ncaaw/tournament');
+                const data = await response.json();
+
+                // Update live games
+                const liveGamesGrid = document.getElementById('live-games-grid');
+                const noLiveGames = document.getElementById('no-live-games');
+                if (data.games.live.length > 0) {
+                    liveGamesGrid.innerHTML = data.games.live.map(createGameCard).join('');
+                    noLiveGames.style.display = 'none';
+                } else {
+                    liveGamesGrid.innerHTML = '';
+                    noLiveGames.style.display = 'block';
+                }
+
+                // Update upcoming games
+                const upcomingGamesGrid = document.getElementById('upcoming-games-grid');
+                const noUpcomingGames = document.getElementById('no-upcoming-games');
+                if (data.games.upcoming.length > 0) {
+                    upcomingGamesGrid.innerHTML = data.games.upcoming.map(createGameCard).join('');
+                    noUpcomingGames.style.display = 'none';
+                } else {
+                    upcomingGamesGrid.innerHTML = '';
+                    noUpcomingGames.style.display = 'block';
+                }
+
+                // Update completed games
+                const completedGamesGrid = document.getElementById('completed-games-grid');
+                const noCompletedGames = document.getElementById('no-completed-games');
+                if (data.games.completed.length > 0) {
+                    completedGamesGrid.innerHTML = data.games.completed.map(createGameCard).join('');
+                    noCompletedGames.style.display = 'none';
+                } else {
+                    completedGamesGrid.innerHTML = '';
+                    noCompletedGames.style.display = 'block';
+                }
+
+                // Update tournament bracket
+                const bracketContainer = document.getElementById('bracket-container');
+                bracketContainer.innerHTML = data.rounds.map(createTournamentRound).join('');
+            } catch (error) {
+                console.error('Error updating games:', error);
+            }
+        }
+
+        // Function to update rankings
+        async function updateRankings() {
+            try {
+                const response = await fetch('/api/ncaaw/rankings');
+                const rankings = await response.json();
+                const rankingsList = document.getElementById('rankings-list');
+                rankingsList.innerHTML = rankings.map(createRankingsItem).join('');
+            } catch (error) {
+                console.error('Error updating rankings:', error);
+            }
+        }
+
+        // Initial update
+        updateGames();
+        updateRankings();
+
+        // Update every minute
+        setInterval(updateGames, 60000);
+        setInterval(updateRankings, 60000);
+    </script>
+</body>
+</html> 
