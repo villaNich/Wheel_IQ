@@ -119,12 +119,18 @@ header p {
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 1.5rem;
+    justify-content: space-between;
+    min-width: 0;
 }
 
 .team-name {
     font-size: 1.1rem;
     font-weight: 600;
+    flex: 1;
+    margin-right: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .team-score {
@@ -132,6 +138,7 @@ header p {
     font-weight: 700;
     min-width: 48px;
     text-align: right;
+    flex-shrink: 0;
 }
 
 /* Standings */
@@ -193,12 +200,18 @@ header p {
         height: 40px;
     }
 
+    .team-info {
+        gap: 1rem;
+    }
+
     .team-name {
         font-size: 1rem;
+        margin-right: 0.5rem;
     }
 
     .team-score {
         font-size: 1.4rem;
+        min-width: 40px;
     }
 
     .standings-header, .standings-row {
