@@ -60,67 +60,78 @@ header p {
 /* Games Grid */
 .games-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: var(--horizontal-gap) var(--vertical-gap);
-    margin-bottom: 2rem;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2.5rem;
+    margin: 2rem 0 3rem;
+    padding: 0 1rem;
+    width: 100%;
 }
 
 .game-card {
     background: var(--card-background);
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-radius: 12px;
+    padding: 2rem;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.game-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .game-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-    color: #5f6368;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .teams {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
 }
 
 .team {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.5rem;
-    border-radius: 4px;
-}
-
-.team.winner {
-    background-color: #e8f0fe;
+    gap: 1.5rem;
+    padding: 1rem;
+    border-radius: 8px;
+    background-color: #f8f9fa;
 }
 
 .team-logo {
-    width: 40px;
-    height: 40px;
+    width: 48px;
+    height: 48px;
     object-fit: contain;
 }
 
-.team-name {
+.team-info {
     flex: 1;
-    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.team-name {
+    font-size: 1.1rem;
+    font-weight: 600;
 }
 
 .team-score {
-    font-weight: 600;
-    font-size: 1.2rem;
-}
-
-.game-footer {
-    margin-top: 1rem;
-    font-size: 0.9rem;
-    color: #5f6368;
-    display: flex;
-    justify-content: space-between;
+    font-size: 1.6rem;
+    font-weight: 700;
+    min-width: 48px;
+    text-align: right;
 }
 
 /* Standings */
@@ -153,12 +164,6 @@ header p {
     text-align: center;
 }
 
-.team-info {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
 .team-stats {
     text-align: center;
 }
@@ -170,18 +175,36 @@ header p {
     }
 
     .games-grid {
-        gap: var(--mobile-horizontal-gap) var(--mobile-vertical-gap);
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        padding: 0;
+    }
+
+    .game-card {
+        padding: 1.5rem;
+    }
+
+    .team {
+        padding: 0.75rem;
+    }
+
+    .team-logo {
+        width: 40px;
+        height: 40px;
+    }
+
+    .team-name {
+        font-size: 1rem;
+    }
+
+    .team-score {
+        font-size: 1.4rem;
     }
 
     .standings-header, .standings-row {
         grid-template-columns: 40px 1fr repeat(8, 0.8fr);
         gap: 0.5rem;
         font-size: 0.9rem;
-    }
-
-    .team-logo {
-        width: 30px;
-        height: 30px;
     }
 }
 
@@ -305,6 +328,7 @@ section h2 {
     padding: 1.5rem;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     width: 100%;
+    box-sizing: border-box;
 }
 
 .card h3 {
@@ -324,24 +348,9 @@ section h2 {
     width: 100%;
 }
 
-.game-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid #eee;
-}
-
 .game-status {
     font-weight: bold;
     color: #ff6b6b;
-}
-
-.teams {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
 }
 
 .team {
@@ -353,37 +362,11 @@ section h2 {
     background-color: #f8f9fa;
 }
 
-.team-logo {
-    width: 48px;
-    height: 48px;
-    object-fit: contain;
-}
-
-.team-info {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
 .team-seed {
     font-size: 0.9rem;
     font-weight: bold;
     color: #1e3d59;
     min-width: 24px;
-}
-
-.team-name {
-    font-weight: 600;
-    flex: 1;
-}
-
-.team-score {
-    font-size: 1.4rem;
-    font-weight: bold;
-    min-width: 40px;
-    text-align: right;
-    margin-left: auto;
 }
 
 /* Play-by-play section */
