@@ -30,7 +30,7 @@ async function loadLivePlayByPlay(gameId) {
                 <div class="live-play-by-play">
                     <h3>Live Updates</h3>
                     <div class="plays-list">
-                        ${data.recentPlays.reverse().map(play => `
+                        ${data.recentPlays.map(play => `
                             <div class="play">
                                 <div class="play-time">${play.period}Q ${play.clock}</div>
                                 <div class="play-text">${play.text}</div>
@@ -73,13 +73,15 @@ async function createGameCard(game) {
     console.log('[Client] Creating game card for:', {
         id: game.id,
         status: game.status.state,
-        name: game.name
+        name: game.name,
+        clock: game.status.clock
     });
     
     // Only show play-by-play for games that are actually in progress
-    const playByPlayHtml = game.status.state === 'in' && game.status.clock !== '0:00' ? 
-        await loadLivePlayByPlay(game.id) : '';
+    const isLive = game.status.state === 'in' && game.status.clock !== '0:00';
+    console.log('[Client] Game live status:', isLive);
     
+    const playByPlayHtml = isLive ? await loadLivePlayByPlay(game.id) : '';
     console.log('[Client] Play-by-play HTML:', playByPlayHtml ? 'Generated' : 'Empty');
     
     return `

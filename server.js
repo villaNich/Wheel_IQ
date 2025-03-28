@@ -357,30 +357,71 @@ app.get('/api/ncaaw/game/:gameId/playbyplay', async (req, res) => {
         const data = await fetchESPNData(ESPN_API.NCAAW_GAME_PLAYBYPLAY(gameId));
         console.log('[Play-by-Play] Raw API Response:', JSON.stringify(data, null, 2));
         
-        if (!data.plays) {
-            console.log('[Play-by-Play] No plays data found in API response');
+        // Check if we have a valid response
+        if (!data || data.code === 404) {
+            console.log('[Play-by-Play] No data available for game');
             return res.status(404).json({ 
                 error: 'No play-by-play data available',
                 gameId,
                 timestamp: new Date().toISOString()
             });
         }
+
+        // Extract plays from the API response
+        const plays = [];
         
-        // Process the play-by-play data
-        const plays = data.plays || [];
+        // Get plays from the main plays array
+        if (data.plays) {
+            plays.push(...data.plays);
+        }
+        
+        // Get plays from drives
+        if (data.drives) {
+            data.drives.forEach(drive => {
+                if (drive.plays) {
+                    plays.push(...drive.plays);
+                }
+            });
+        }
+        
+        // Get plays from scoring plays
+        if (data.scoringPlays) {
+            plays.push(...data.scoringPlays);
+        }
+
+        // Sort plays by period and time
+        plays.sort((a, b) => {
+            const periodA = a.period?.number || 0;
+            const periodB = b.period?.number || 0;
+            if (periodA !== periodB) return periodB - periodA;
+            
+            const timeA = a.clock?.displayValue || '0:00';
+            const timeB = b.clock?.displayValue || '0:00';
+            return timeB.localeCompare(timeA);
+        });
+
+        // Take the most recent 10 plays
+        const recentPlays = plays.slice(0, 10).map(play => ({
+            id: play.id,
+            clock: play.clock?.displayValue || '0:00',
+            period: play.period?.number || 0,
+            text: play.text || '',
+            scoreValue: play.scoreValue || 0,
+            team: play.team?.abbreviation || '',
+            type: play.type?.text || ''
+        }));
+
+        console.log('[Play-by-Play] Processed plays:', {
+            totalPlays: plays.length,
+            recentPlaysCount: recentPlays.length,
+            samplePlay: recentPlays[0]
+        });
+
         const gameInfo = {
             clock: data.clock,
             period: data.period,
             possessionArrow: data.possessionArrow,
-            recentPlays: plays.slice(-10).map(play => ({
-                id: play.id,
-                clock: play.clock?.displayValue,
-                period: play.period?.number,
-                text: play.text,
-                scoreValue: play.scoreValue,
-                team: play.team?.abbreviation,
-                type: play.type?.text
-            })),
+            recentPlays: recentPlays,
             scoring: data.scoringPlays?.map(play => ({
                 id: play.id,
                 clock: play.clock?.displayValue,
@@ -390,12 +431,6 @@ app.get('/api/ncaaw/game/:gameId/playbyplay', async (req, res) => {
                 team: play.team?.abbreviation
             })) || []
         };
-        
-        console.log('[Play-by-Play] Processed data:', {
-            recentPlaysCount: gameInfo.recentPlays.length,
-            scoringPlaysCount: gameInfo.scoring.length,
-            samplePlay: gameInfo.recentPlays[0]
-        });
         
         res.json(gameInfo);
     } catch (error) {
